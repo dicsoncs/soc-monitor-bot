@@ -5,7 +5,11 @@ from telegram.ext import (
     ContextTypes
 )
 
-TOKEN = "8576334407:AAGheqz_tQ8UzoCrMc5R2ELotcxGb-_7E-g"
+
+import os
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
