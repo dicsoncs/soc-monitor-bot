@@ -1,0 +1,33 @@
+ LOS:
+LOS significa Loss Of Signal.
+Corresponde a una pérdida de señal óptica.
+
+POTENCIA:
+Verificación de Potencia Óptica.
+1. Ingresar al servicio.
+2. ONU Optical Module Info.
+3. Revisar Rx Optical Power.
+4. Valor recomendado hasta -23 dBm.
+
+OLT:
+OLT significa Optical Line Terminal.
+Es el equipo principal de la red GPON.
+
+NAP:
+NAP corresponde al punto de distribución donde se conectan los clientes.
+
+HELIX:
+Herramienta utilizada para gestión de incidencias y tickets.
+
+TCM:
+Equipo encargado de la atención y seguimiento de incidencias.
+
+SMARTWIFI:
+Plataforma de monitoreo y validación de servicios GPON.
+
+EVENTO MASIVO:
+Incidente que afecta múltiples clientes simultáneamente.
+
+SOC:
+Service Operations Center.
+Centro encargado del monitoreo y gestión operacional.
