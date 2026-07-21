@@ -64,6 +64,7 @@ Indicadores utilizados para medir el desempeño operativo del SOC.
 GPON:
 Gigabit Passive Optical Network.
 Tecnología utilizada para la prestación de servicios de fibra óptica mediante una red pasiva.
+
 TAC:
 Equipo encargado de la atención técnica especializada.
 
