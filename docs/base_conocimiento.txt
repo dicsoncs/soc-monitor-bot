@@ -57,3 +57,6 @@ Validar alarmas, potencia, estado ONU y trazas de servicio.
 
 FAN SHARING FALLA:
 Validar inventario, estado del servicio y sincronización de datos.
+
+PRUEBA:
+Esto es una prueba del SOC Assistant.
