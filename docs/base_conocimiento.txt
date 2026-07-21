@@ -52,7 +52,19 @@ SMARTWIFI:
 Plataforma utilizada para monitoreo y validación de servicios GPON residenciales.
 
 FAN SHARING:
-Plataforma utilizada para monitoreo y validación de clientes GPON.
+Arquitectura de interconexión y plataforma utilizada para monitoreo, provisión y validación de clientes GPON entre Entel y WINET.
+
+AAA:
+Plataforma encargada de autenticar dispositivos o usuarios, autorizar el acceso a los servicios de red y registrar la información de las sesiones.
+
+ACS GENIE:
+Plataforma de gestión remota de equipos CPE basada en TR-069.
+
+BROADSOFT:
+Plataforma utilizada para gestión de servicios SIP y comunicaciones unificadas.
+
+BROADWORKS:
+Plataforma que integra voz, correo, video y servicios SIP.
 
 CAIDA DE OLT:
 1. Validar alarmas.
@@ -73,34 +85,13 @@ VALIDACION DE POTENCIA:
 3. Revisar Rx Optical Power.
 4. Valor recomendado hasta -23 dBm.
 
-EVENTO MASIVO:
-Incidente que afecta múltiples clientes simultáneamente.
-
-ESCALAMIENTO MASIVO:
-1. Validar impacto del evento.
-2. Identificar OLT afectada.
-3. Registrar ticket.
-4. Escalar a TCM.
-5. Informar a NOC.
-6. Realizar seguimiento hasta la normalización.
-
-CLIENTES AFECTADOS:
-Cantidad de usuarios impactados por una incidencia.
-
-PRUEBA:
-Esto es una prueba del SOC Assistant.
-
-AAA:
-Plataforma encargada de autenticar dispositivos o usuarios, autorizar el acceso a los servicios de red y registrar la información de las sesiones.
-
-PROVISION AAA:
-Permite registrar suscriptores.
-Permite dar de baja suscriptores.
-Permite modificar estado del usuario.
-Permite modificar perfiles de velocidad.
-
-ACS GENIE:
-Plataforma de gestión remota de equipos CPE (ONT y routers) basada en TR-069.
+VALIDAR FAN SHARING:
+1. Ingresar a Resource List.
+2. Buscar ONT SN.
+3. Revisar estado del servicio.
+4. Verificar OLT.
+5. Verificar PON Port.
+6. Verificar ONT ID.
 
 BUSCAR SERIAL ACS:
 1. Ingresar a ACS Genie.
@@ -119,22 +110,11 @@ ACTUALIZAR FIRMWARE:
 3. Seleccionar firmware homologado.
 4. Verificar resultado.
 
-FAN SHARING:
-Arquitectura de interconexión que permite compartir infraestructura entre Entel y WINET para servicios GPON.
-
-VALIDAR FAN SHARING:
-1. Ingresar a Resource List.
-2. Buscar ONT SN.
-3. Revisar estado del servicio.
-4. Verificar OLT.
-5. Verificar PON Port.
-6. Verificar ONT ID.
-
-BROADSOFT:
-Plataforma utilizada para gestión de servicios SIP y comunicaciones unificadas.
-
-BROADWORKS:
-Plataforma que integra voz, correo, video y servicios SIP.
+PROVISION AAA:
+Permite registrar suscriptores.
+Permite dar de baja suscriptores.
+Permite modificar estado del usuario.
+Permite modificar perfiles de velocidad.
 
 PROVISION SIP:
 1. Ingresar a BroadWorks.
@@ -153,3 +133,42 @@ Permite capturar llamadas dentro de un grupo.
 CORTE SIP:
 Permite realizar corte parcial o total de una línea SIP.
 
+EVENTO MASIVO:
+Incidente que afecta múltiples clientes simultáneamente.
+
+ESCALAMIENTO MASIVO:
+1. Validar impacto del evento.
+2. Identificar OLT afectada.
+3. Registrar ticket.
+4. Escalar a TCM.
+5. Informar a NOC.
+6. Realizar seguimiento hasta la normalización.
+
+CLIENTES AFECTADOS:
+Cantidad de usuarios impactados por una incidencia.
+
+SEVERIDAD ALTA:
+Incidente que afecta servicios críticos o una cantidad significativa de clientes.
+
+SEVERIDAD MEDIA:
+Incidente con impacto parcial sobre clientes o servicios.
+
+SEVERIDAD BAJA:
+Incidente con impacto reducido y sin afectación masiva.
+
+CLIENTE B2B:
+Cliente corporativo.
+
+CLIENTE B2C:
+Cliente residencial.
+
+SLA:
+Service Level Agreement.
+Acuerdo de nivel de servicio comprometido con el cliente.
+
+RCA:
+Root Cause Analysis.
+Análisis de causa raíz de una incidencia.
+
+PRUEBA:
+Esto es una prueba del SOC Assistant.
