@@ -31,3 +31,38 @@ Incidente que afecta múltiples clientes simultáneamente.
 SOC:
 Service Operations Center.
 Centro encargado del monitoreo y gestión operacional.
+
+NOC:
+Network Operations Center.
+Área encargada de la operación y monitoreo de la red.
+
+SAC:
+Área responsable de la atención y soporte a clientes.
+
+ONU:
+Optical Network Unit.
+Equipo instalado en el cliente final.
+
+GPON:
+Gigabit Passive Optical Network.
+Tecnología utilizada para la prestación de servicios de fibra óptica.
+
+FAN SHARING:
+Plataforma utilizada para el monitoreo y validación de servicios GPON.
+
+ESCALAMIENTO MASIVO:
+1. Validar impacto.
+2. Identificar OLT afectada.
+3. Registrar ticket.
+4. Escalar a TCM.
+5. Informar a NOC.
+6. Realizar seguimiento hasta la normalización.
+
+KPI SOC:
+Indicadores utilizados para medir el desempeño operativo del SOC.
+
+TAC:
+Equipo encargado de la atención técnica especializada.
+
+SEVERIDAD ALTA:
+Evento que impacta múltiples clientes o servicios críticos.
