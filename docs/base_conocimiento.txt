@@ -79,7 +79,7 @@ Network Operations Center.
 Área encargada del monitoreo y operación de la red.
 
 FAN SHARING:
-Plataforma utilizada para el monitoreo de servicios GPON.
+Plataforma utilizada para el monitoreo de servicios GPON de Red Wiinet.
 
 NCE:
 Network Cloud Engine.
