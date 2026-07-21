@@ -2,30 +2,136 @@ from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    ContextTypes
+    ContextTypes,
+    MessageHandler,
+    filters
 )
-
 
 import os
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
+# ========================================
+# START
+# ========================================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Hola 👋\nBot SOC funcionando correctamente."
+        "👋 Hola.\n\n"
+        "Soy el SOC Assistant.\n"
+        "Bot SOC funcionando correctamente.\n\n"
+        "Comandos disponibles:\n"
+        "/helix\n"
+        "/nce\n"
+        "/smartwifi\n"
+        "/masivas"
     )
+
+
+# ========================================
+# RESPUESTAS LIBRES
+# ========================================
+
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    mensaje = update.message.text.lower()
+
+    if any(palabra in mensaje for palabra in [
+        "hola",
+        "buenos dias",
+        "buen día",
+        "buenas tardes",
+        "buenas noches"
+    ]):
+
+        await update.message.reply_text(
+            "👋 Hola.\n\n"
+            "Soy el SOC Assistant.\n\n"
+            "Puedo ayudarte con:\n"
+            "✅ HELIX\n"
+            "✅ NCE GPON\n"
+            "✅ SmartWiFi\n"
+            "✅ Eventos Masivos\n\n"
+            "Ejemplos:\n"
+            "/nce potencia\n"
+            "/helix ticket"
+        )
+
+    elif "los" in mensaje:
+
+        await update.message.reply_text(
+            "📘 LOS = Loss Of Signal.\n\n"
+            "Corresponde a una pérdida de señal óptica."
+        )
+
+    elif "potencia" in mensaje:
+
+        await update.message.reply_text(
+            "📘 Potencia Óptica\n\n"
+            "1. Ingresar al servicio.\n"
+            "2. ONU Optical Module Info.\n"
+            "3. Revisar Rx Optical Power.\n"
+            "4. Valor recomendado hasta -23 dBm."
+        )
+
+    elif "ticket" in mensaje:
+
+        await update.message.reply_text(
+            "📘 HELIX - Creación de Ticket\n\n"
+            "1. Ingresar a Aplicaciones.\n"
+            "2. Crear incidencia.\n"
+            "3. Asociar OLT.\n"
+            "4. Seleccionar Torre de Control.\n"
+            "5. Asignar a TCM.\n"
+            "6. Adjuntar evidencia."
+        )
+
+    elif "olt" in mensaje:
+
+        await update.message.reply_text(
+            "📘 Caída de OLT\n\n"
+            "1. Validar alarmas.\n"
+            "2. Revisar energía.\n"
+            "3. Verificar uplinks.\n"
+            "4. Escalar al equipo correspondiente."
+        )
+
+    elif "nap" in mensaje:
+
+        await update.message.reply_text(
+            "📘 Caída de NAP\n\n"
+            "1. Validar clientes afectados.\n"
+            "2. Identificar OLT.\n"
+            "3. Registrar incidente.\n"
+            "4. Escalar a TCM.\n"
+            "5. Notificar involucrados."
+        )
+
+    else:
+
+        await update.message.reply_text(
+            "🤖 Consulta recibida.\n\n"
+            "Aún estoy aprendiendo.\n"
+            "Próximamente responderé más consultas del SOC."
+        )
+
+
+# ========================================
+# HELIX
+# ========================================
 
 async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     consulta = " ".join(context.args).lower()
 
     if not consulta:
+
         await update.message.reply_text(
             "✅ Consulta HELIX recibida\n\n"
             "Ejemplos:\n"
-            "/helix crear ticket\n"
-            "/helix derivacion tcm"
+            "/helix ticket\n"
+            "/helix tcm"
         )
         return
 
@@ -55,16 +161,22 @@ async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔍 No encontré una regla para: {consulta}"
         )
 
+
+# ========================================
+# NCE
+# ========================================
+
 async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     consulta = " ".join(context.args).lower()
 
     if not consulta:
+
         await update.message.reply_text(
             "✅ Consulta NCE GPON recibida\n\n"
             "Ejemplos:\n"
-            "/nce potencia optica\n"
-            "/nce alarma los"
+            "/nce potencia\n"
+            "/nce los"
         )
         return
 
@@ -74,7 +186,7 @@ async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📘 MANUAL NCE GPON\n\n"
             "Verificación de Potencia Óptica:\n"
             "1. Ingresar al servicio.\n"
-            "2. Seleccionar ONU Optical Module Info.\n"
+            "2. ONU Optical Module Info.\n"
             "3. Revisar Rx Optical Power.\n"
             "4. Valor recomendado hasta -23 dBm."
         )
@@ -92,63 +204,41 @@ async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"🔍 No encontré una regla para: {consulta}"
         )
-        return
 
-    if "potencia" in consulta:
 
-        await update.message.reply_text(
-            "📘 MANUAL NCE GPON\n\n"
-            "Verificación de Potencia Óptica:\n"
-            "1. Ingresar al servicio.\n"
-            "2. Seleccionar ONU Optical Module Info.\n"
-            "3. Revisar Rx Optical Power.\n"
-            "4. Valor recomendado hasta -23 dBm."
-        )
-
-    elif "los" in consulta:
-
-        await update.message.reply_text(
-            "📘 MANUAL NCE GPON\n\n"
-            "LOS = Loss Of Signal.\n"
-            "Corresponde a una pérdida de señal óptica."
-        )
-
-    else:
-
-        await update.message.reply_text(
-            f"🔍 No encontré una regla para: {consulta}"
-        )
+# ========================================
+# SMARTWIFI
+# ========================================
 
 async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     consulta = " ".join(context.args).lower()
 
     if not consulta:
+
         await update.message.reply_text(
             "✅ Consulta SmartWiFi recibida\n\n"
             "Ejemplos:\n"
-            "/smartwifi alarma fibra\n"
-            "/smartwifi alarma energia"
+            "/smartwifi fibra\n"
+            "/smartwifi energia"
         )
         return
 
     if "fibra" in consulta:
 
         await update.message.reply_text(
-            "📘 MANUAL SMARTWIFI\n\n"
+            "📘 SMARTWIFI\n\n"
             "Alarma de Fibra:\n"
-            "1. Ingresar a Event List.\n"
-            "2. Revisar eventos de fibra.\n"
-            "3. Validar estado ONT.\n"
-            "4. Confirmar última conexión del servicio."
+            "1. Revisar Event List.\n"
+            "2. Validar ONT.\n"
+            "3. Confirmar última conexión."
         )
 
     elif "energia" in consulta:
 
         await update.message.reply_text(
-            "📘 MANUAL SMARTWIFI\n\n"
-            "Alarma de Energía:\n"
-            "Verificar reinicios ocasionados por pérdida de energía o apagado de ONT."
+            "📘 SMARTWIFI\n\n"
+            "Verificar reinicios ocasionados por pérdida de energía."
         )
 
     else:
@@ -157,16 +247,22 @@ async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔍 No encontré una regla para: {consulta}"
         )
 
+
+# ========================================
+# MASIVAS
+# ========================================
+
 async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     consulta = " ".join(context.args).lower()
 
     if not consulta:
+
         await update.message.reply_text(
-            "✅ Consulta Eventos Masivos recibida\n\n"
+            "✅ Consulta Eventos Masivos\n\n"
             "Ejemplos:\n"
-            "/masivas caida nap\n"
-            "/masivas caida olt"
+            "/masivas nap\n"
+            "/masivas olt"
         )
         return
 
@@ -174,19 +270,16 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(
             "📘 EVENTO MASIVO GPON\n\n"
-            "Caída de NAP:\n"
-            "1. Validar impacto de clientes.\n"
-            "2. Identificar OLT asociada.\n"
+            "1. Validar impacto.\n"
+            "2. Identificar OLT.\n"
             "3. Registrar incidente.\n"
-            "4. Escalar a TCM.\n"
-            "5. Notificar a las áreas involucradas."
+            "4. Escalar a TCM."
         )
 
     elif "olt" in consulta:
 
         await update.message.reply_text(
             "📘 EVENTO MASIVO GPON\n\n"
-            "Caída de OLT:\n"
             "1. Validar alarmas.\n"
             "2. Revisar energía.\n"
             "3. Verificar uplinks.\n"
@@ -198,6 +291,12 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"🔍 No encontré una regla para: {consulta}"
         )
+
+
+# ========================================
+# APP
+# ========================================
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
@@ -205,6 +304,13 @@ app.add_handler(CommandHandler("helix", helix))
 app.add_handler(CommandHandler("nce", nce))
 app.add_handler(CommandHandler("smartwifi", smartwifi))
 app.add_handler(CommandHandler("masivas", masivas))
+
+app.add_handler(
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        responder
+    )
+)
 
 print("Bot iniciado...")
 
