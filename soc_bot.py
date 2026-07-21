@@ -28,6 +28,8 @@ try:
             clave = bloque.split(":")[0].strip().lower()
             BASE_CONOCIMIENTO[clave] = bloque
 
+    print("Base de conocimiento cargada correctamente")
+
 except Exception as e:
     print("Error cargando base de conocimiento:", e)
 
@@ -36,16 +38,23 @@ except Exception as e:
 # ========================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     await update.message.reply_text(
         "👋 Hola.\n\n"
         "Soy el SOC Assistant.\n\n"
-        "Puedes consultarme:\n"
-        "LOS\n"
+        "Consultas disponibles:\n"
+        "SOC\n"
+        "TAC\n"
+        "NOC\n"
         "OLT\n"
         "NAP\n"
-        "SOC\n"
+        "ONU\n"
+        "GPON\n"
         "HELIX\n"
-        "POTENCIA"
+        "NCE\n"
+        "SMARTWIFI\n"
+        "LOS\n"
+        "TCM"
     )
 
 # ========================================
@@ -54,29 +63,41 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    mensaje = update.message.text.lower()
+    mensaje = update.message.text.lower().strip()
 
-    if any(palabra in mensaje for palabra in [
+    # Saludos
+    if mensaje in [
         "hola",
         "buenos dias",
         "buen día",
         "buenas tardes",
         "buenas noches"
-    ]):
+    ]:
+
         await update.message.reply_text(
             "👋 Hola.\n\n"
             "Soy el SOC Assistant."
         )
         return
 
-    for clave, respuesta in BASE_CONOCIMIENTO.items():
+    # Buscar coincidencia EXACTA
+    if mensaje in BASE_CONOCIMIENTO:
 
-        if clave in mensaje:
-            await update.message.reply_text(respuesta)
-            return
+        await update.message.reply_text(
+            BASE_CONOCIMIENTO[mensaje]
+        )
+        return
 
     await update.message.reply_text(
-        "🤖 No encontré información en la base de conocimiento."
+        "🤖 No encontré información en la base de conocimiento.\n\n"
+        "Intenta con:\n"
+        "SOC\n"
+        "TAC\n"
+        "NOC\n"
+        "GPON\n"
+        "ONU\n"
+        "OLT\n"
+        "HELIX"
     )
 
 # ========================================
@@ -84,23 +105,27 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     await update.message.reply_text(
-        "Escribe HELIX o pregunta sobre tickets."
+        "Escribe HELIX para ver la definición."
     )
 
 async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     await update.message.reply_text(
-        "Escribe POTENCIA o LOS."
+        "Escribe NCE para consultar la plataforma."
     )
 
 async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     await update.message.reply_text(
-        "Consulta SmartWiFi."
+        "Escribe SMARTWIFI para consultar información."
     )
 
 async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     await update.message.reply_text(
-        "Consulta eventos masivos."
+        "Escribe EVENTO MASIVO para consultar el procedimiento."
     )
 
 # ========================================
