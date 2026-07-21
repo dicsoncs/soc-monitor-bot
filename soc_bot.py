@@ -10,6 +10,7 @@ from telegram.ext import (
 import os
 import re
 import json
+import html
 
 
 # ========================================
@@ -96,35 +97,7 @@ def es_admin(user_id):
 
 
 # ========================================
-# BASE DE CONOCIMIENTO
-# ========================================
-
-BASE_CONOCIMIENTO = {}
-
-try:
-    with open("docs/base_conocimiento.txt", "r", encoding="utf-8") as archivo:
-        contenido = archivo.read()
-
-    contenido = contenido.replace("<br>", "\n\n")
-    contenido = contenido.replace("&lt;br&gt;", "\n\n")
-
-    bloques = contenido.split("\n\n")
-
-    for bloque in bloques:
-        bloque = bloque.strip()
-
-        if ":" in bloque:
-            clave = bloque.split(":")[0].strip().lower()
-            BASE_CONOCIMIENTO[clave] = bloque
-
-    print("Base de conocimiento cargada correctamente")
-
-except Exception as e:
-    print("Error cargando base de conocimiento:", e)
-
-
-# ========================================
-# FUNCIONES AUXILIARES
+# LIMPIEZA DE TEXTO
 # ========================================
 
 def limpiar_mensaje(texto):
@@ -142,6 +115,45 @@ def limpiar_mensaje(texto):
     return texto
 
 
+# ========================================
+# BASE DE CONOCIMIENTO
+# ========================================
+
+BASE_CONOCIMIENTO = {}
+
+try:
+    with open("docs/base_conocimiento.txt", "r", encoding="utf-8") as archivo:
+        contenido = archivo.read()
+
+    # Convierte entidades HTML si existieran
+    contenido = html.unescape(contenido)
+
+    # Limpieza de saltos HTML
+    contenido = contenido.replace("<br>", "\n\n")
+    contenido = contenido.replace("<br/>", "\n\n")
+    contenido = contenido.replace("<br />", "\n\n")
+    contenido = contenido.replace("&lt;br&gt;", "\n\n")
+
+    bloques = contenido.split("\n\n")
+
+    for bloque in bloques:
+        bloque = bloque.strip()
+
+        if ":" in bloque:
+            clave_original = bloque.split(":")[0].strip()
+            clave_limpia = limpiar_mensaje(clave_original)
+            BASE_CONOCIMIENTO[clave_limpia] = bloque
+
+    print("Base de conocimiento cargada correctamente")
+
+except Exception as e:
+    print("Error cargando base de conocimiento:", e)
+
+
+# ========================================
+# VALIDACIÓN DE ACCESO
+# ========================================
+
 async def validar_acceso(update: Update, mensaje_original: str):
 
     user_id = update.effective_user.id
@@ -149,7 +161,7 @@ async def validar_acceso(update: Update, mensaje_original: str):
 
     print(f"Mensaje recibido de usuario {user_id}: {mensaje_original}")
 
-    # Si ALLOW_ALL_USERS está activo, no valida ID
+    # Validar ID solo si ALLOW_ALL_USERS está en false
     if not ALLOW_ALL_USERS:
 
         if user_id not in usuarios_autorizados:
@@ -211,10 +223,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     if ALLOW_ALL_USERS:
+
         if user_id not in usuarios_logueados:
             await update.message.reply_text(
                 "🔐 Ingresa la contraseña de acceso."
             )
+
         return
 
     usuarios_autorizados = obtener_usuarios_autorizados()
@@ -396,6 +410,15 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mensaje_original = update.message.text.strip()
     mensaje = limpiar_mensaje(mensaje_original)
+    user_id = update.effective_user.id
+
+    # Evitar que la contraseña SOCENTEL2026 se interprete como SOC
+    if mensaje_original.strip() == ACCESS_CODE and user_id in usuarios_logueados:
+
+        await update.message.reply_text(
+            "✅ Ya tienes una sesión activa en el SOC Assistant."
+        )
+        return
 
     saludos = [
         "hola",
@@ -424,6 +447,7 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
+    # Coincidencia exacta
     if mensaje in BASE_CONOCIMIENTO:
 
         await update.message.reply_text(
@@ -431,11 +455,12 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Coincidencia flexible
     for clave in sorted(BASE_CONOCIMIENTO.keys(), key=len, reverse=True):
 
         clave_limpia = limpiar_mensaje(clave)
 
-        if clave_limpia in mensaje:
+        if clave_limpia == mensaje or clave_limpia in mensaje or mensaje in clave_limpia:
 
             await update.message.reply_text(
                 BASE_CONOCIMIENTO[clave]
@@ -452,6 +477,8 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "NCE\n"
         "SMARTWIFI\n"
         "FAN SHARING\n"
+        "POTENCIA\n"
+        "COMO VALIDAR POTENCIA\n"
         "HELIX CREAR TICKET\n"
         "NCE TROUBLESHOOTING"
     )
@@ -468,8 +495,10 @@ async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    if "helix" in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO["helix"])
+    clave = "helix"
+
+    if clave in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
     else:
         await update.message.reply_text("HELIX no encontrado en la base de conocimiento.")
 
@@ -481,8 +510,10 @@ async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    if "nce" in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO["nce"])
+    clave = "nce"
+
+    if clave in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
     else:
         await update.message.reply_text("NCE no encontrado en la base de conocimiento.")
 
@@ -494,8 +525,10 @@ async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    if "smartwifi" in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO["smartwifi"])
+    clave = "smartwifi"
+
+    if clave in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
     else:
         await update.message.reply_text("SMARTWIFI no encontrado en la base de conocimiento.")
 
@@ -507,8 +540,10 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    if "evento masivo" in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO["evento masivo"])
+    clave = "evento masivo"
+
+    if clave in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
     else:
         await update.message.reply_text("EVENTO MASIVO no encontrado en la base de conocimiento.")
 
@@ -525,6 +560,9 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 # APP
 # ========================================
+
+if not TOKEN:
+    raise ValueError("No se encontró TELEGRAM_BOT_TOKEN en las variables de entorno.")
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -552,4 +590,4 @@ app.add_error_handler(error_handler)
 
 print("Bot iniciado...")
 
-app.run_polling()
+app.run_polling(drop_pending_updates=True)
