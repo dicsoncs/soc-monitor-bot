@@ -9,6 +9,23 @@ from telegram.ext import (
 
 import os
 
+BASE_CONOCIMIENTO = {}
+
+try:
+    with open("docs/base_conocimiento.txt", "r", encoding="utf-8") as archivo:
+        contenido = archivo.read()
+
+    bloques = contenido.split("\n\n")
+
+    for bloque in bloques:
+        if ":" in bloque:
+            clave = bloque.split(":")[0].strip().lower()
+            BASE_CONOCIMIENTO[clave] = bloque
+
+except Exception as e:
+    print("Error cargando base de conocimiento:", e)
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
