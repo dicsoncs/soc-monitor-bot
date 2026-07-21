@@ -28,6 +28,7 @@ ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower() == "true"
 
 USERS_FILE = "usuarios_autorizados.json"
 SESSION_FILE = "sesiones.json"
+CONSULTAS_FILE = "consultas.json"
 
 
 # ========================================
@@ -65,6 +66,58 @@ def guardar_sesiones():
 
 
 usuarios_logueados = cargar_sesiones()
+
+
+# ========================================
+# CONSULTAS / ESTADÍSTICAS
+# ========================================
+
+def cargar_consultas():
+    try:
+        if os.path.exists(CONSULTAS_FILE):
+            with open(CONSULTAS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if isinstance(data, list):
+                return data
+
+    except Exception as e:
+        print("Error cargando consultas:", e)
+
+    return []
+
+
+def guardar_consultas(data):
+    try:
+        with open(CONSULTAS_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                data,
+                f,
+                indent=4,
+                ensure_ascii=False
+            )
+
+        print("Consultas guardadas correctamente")
+
+    except Exception as e:
+        print("Error guardando consultas:", e)
+
+
+def registrar_consulta(user_id, consulta):
+    try:
+        data = cargar_consultas()
+
+        data.append(
+            {
+                "usuario": str(user_id),
+                "consulta": consulta
+            }
+        )
+
+        guardar_consultas(data)
+
+    except Exception as e:
+        print("Error registrando consulta:", e)
 
 
 # ========================================
@@ -483,12 +536,16 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not acceso_ok:
             return
 
+        registrar_consulta(user_id, mensaje_original)
+
         return
 
     acceso_ok = await validar_acceso(update, mensaje_original)
 
     if not acceso_ok:
         return
+
+    registrar_consulta(user_id, mensaje_original)
 
     # Coincidencia exacta
     if mensaje in BASE_CONOCIMIENTO:
@@ -548,6 +605,7 @@ COMANDOS
 /menu
 /id
 /logout
+/estadisticas
 
 ═══════════════════════
 
@@ -574,6 +632,43 @@ COMANDOS DIRECTOS
 """
 
     await update.message.reply_text(texto)
+
+
+# ========================================
+# COMANDO /ESTADISTICAS
+# ========================================
+
+async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    acceso_ok = await validar_acceso(update, "estadisticas")
+
+    if not acceso_ok:
+        return
+
+    data = cargar_consultas()
+
+    total = len(data)
+    ultimas = data[-5:]
+
+    mensaje = (
+        "📊 ESTADÍSTICAS SOC\n\n"
+        f"Consultas registradas: {total}\n\n"
+        "Últimas consultas:\n"
+    )
+
+    if not ultimas:
+        mensaje += "Aún no hay consultas registradas.\n"
+    else:
+        for item in ultimas:
+            consulta = item.get("consulta", "")
+            mensaje += f"• {consulta}\n"
+
+    await update.message.reply_text(mensaje)
+
+
+# ========================================
+# COMANDOS DIRECTOS
+# ========================================
 
 async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -661,6 +756,7 @@ app.add_handler(CommandHandler("logout", logout))
 app.add_handler(CommandHandler("agregarusuario", agregar_usuario))
 app.add_handler(CommandHandler("eliminarusuario", eliminar_usuario))
 app.add_handler(CommandHandler("usuarios", listar_usuarios))
+app.add_handler(CommandHandler("estadisticas", estadisticas))
 
 app.add_handler(CommandHandler("helix", helix))
 app.add_handler(CommandHandler("nce", nce))
