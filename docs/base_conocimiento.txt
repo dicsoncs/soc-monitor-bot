@@ -89,3 +89,67 @@ Cantidad de usuarios impactados por una incidencia.
 
 PRUEBA:
 Esto es una prueba del SOC Assistant.
+
+AAA:
+Plataforma encargada de autenticar dispositivos o usuarios, autorizar el acceso a los servicios de red y registrar la información de las sesiones.
+
+PROVISION AAA:
+Permite registrar suscriptores.
+Permite dar de baja suscriptores.
+Permite modificar estado del usuario.
+Permite modificar perfiles de velocidad.
+
+ACS GENIE:
+Plataforma de gestión remota de equipos CPE (ONT y routers) basada en TR-069.
+
+BUSCAR SERIAL ACS:
+1. Ingresar a ACS Genie.
+2. Buscar por Serial Number.
+3. Revisar detalle del dispositivo.
+
+VALIDAR ONT ACS:
+1. Buscar la ONT por Serial.
+2. Verificar estado de comunicación.
+3. Validar IP de gestión.
+4. Confirmar si se encuentra online.
+
+ACTUALIZAR FIRMWARE:
+1. Buscar la ONT.
+2. Ejecutar Push File.
+3. Seleccionar firmware homologado.
+4. Verificar resultado.
+
+FAN SHARING:
+Arquitectura de interconexión que permite compartir infraestructura entre Entel y WINET para servicios GPON.
+
+VALIDAR FAN SHARING:
+1. Ingresar a Resource List.
+2. Buscar ONT SN.
+3. Revisar estado del servicio.
+4. Verificar OLT.
+5. Verificar PON Port.
+6. Verificar ONT ID.
+
+BROADSOFT:
+Plataforma utilizada para gestión de servicios SIP y comunicaciones unificadas.
+
+BROADWORKS:
+Plataforma que integra voz, correo, video y servicios SIP.
+
+PROVISION SIP:
+1. Ingresar a BroadWorks.
+2. Crear Empresa.
+3. Crear Grupo.
+4. Crear Usuario.
+5. Configurar Address.
+6. Configurar autenticación.
+
+HUNT GROUP:
+Servicio utilizado para distribuir llamadas entre múltiples líneas SIP.
+
+CALL PICKUP:
+Permite capturar llamadas dentro de un grupo.
+
+CORTE SIP:
+Permite realizar corte parcial o total de una línea SIP.
+
