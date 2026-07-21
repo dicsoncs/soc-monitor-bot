@@ -21,8 +21,38 @@ OLT:
 Optical Line Terminal.
 Equipo principal de la red GPON encargado de administrar las ONT y ONU conectadas.
 
-ONU OFFLINE:
-Estado en el cual la ONU deja de reportar conectividad hacia la OLT.
+ONU:
+Optical Network Unit.
+Equipo instalado en el cliente final para recibir la señal GPON.
+
+ONT:
+Optical Network Terminal.
+Dispositivo que convierte la señal óptica en servicios para el cliente.
+
+NAP:
+Network Access Point.
+Punto de distribución donde se conectan múltiples clientes de la red GPON.
+
+LOS:
+Loss Of Signal.
+Pérdida de señal óptica detectada entre la OLT y la ONU.
+
+LOFI:
+Loss Of Frame Indicator.
+Alarma relacionada a pérdida de sincronismo de trama.
+
+NCE:
+Network Cloud Engine.
+Plataforma utilizada para la administración y monitoreo de la red GPON.
+
+HELIX:
+Herramienta utilizada para la gestión de incidencias, tickets y seguimiento operativo.
+
+SMARTWIFI:
+Plataforma utilizada para monitoreo y validación de servicios GPON residenciales.
+
+FAN SHARING:
+Plataforma utilizada para monitoreo y validación de clientes GPON.
 
 CAIDA DE OLT:
 1. Validar alarmas.
@@ -43,20 +73,19 @@ VALIDACION DE POTENCIA:
 3. Revisar Rx Optical Power.
 4. Valor recomendado hasta -23 dBm.
 
+EVENTO MASIVO:
+Incidente que afecta múltiples clientes simultáneamente.
+
+ESCALAMIENTO MASIVO:
+1. Validar impacto del evento.
+2. Identificar OLT afectada.
+3. Registrar ticket.
+4. Escalar a TCM.
+5. Informar a NOC.
+6. Realizar seguimiento hasta la normalización.
+
 CLIENTES AFECTADOS:
 Cantidad de usuarios impactados por una incidencia.
-
-ALARMA LOS:
-Pérdida de señal óptica entre la OLT y la ONU.
-
-ALARMA LOFI:
-Pérdida de sincronismo de trama óptica.
-
-NCE FALLA:
-Validar alarmas, potencia, estado ONU y trazas de servicio.
-
-FAN SHARING FALLA:
-Validar inventario, estado del servicio y sincronización de datos.
 
 PRUEBA:
 Esto es una prueba del SOC Assistant.
