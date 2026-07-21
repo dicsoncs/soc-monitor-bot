@@ -20,3 +20,40 @@ Tecnología utilizada para la prestación de servicios de fibra óptica mediante
 OLT:
 Optical Line Terminal.
 Equipo principal de la red GPON encargado de administrar las ONT y ONU conectadas.
+
+ONU OFFLINE:
+Estado en el cual la ONU deja de reportar conectividad hacia la OLT.
+
+CAIDA DE OLT:
+1. Validar alarmas.
+2. Revisar energía.
+3. Verificar uplinks.
+4. Escalar a TCM.
+5. Informar a NOC.
+
+CAIDA DE NAP:
+1. Validar clientes afectados.
+2. Identificar OLT asociada.
+3. Registrar ticket.
+4. Escalar a TCM.
+
+VALIDACION DE POTENCIA:
+1. Ingresar al servicio.
+2. ONU Optical Module Info.
+3. Revisar Rx Optical Power.
+4. Valor recomendado hasta -23 dBm.
+
+CLIENTES AFECTADOS:
+Cantidad de usuarios impactados por una incidencia.
+
+ALARMA LOS:
+Pérdida de señal óptica entre la OLT y la ONU.
+
+ALARMA LOFI:
+Pérdida de sincronismo de trama óptica.
+
+NCE FALLA:
+Validar alarmas, potencia, estado ONU y trazas de servicio.
+
+FAN SHARING FALLA:
+Validar inventario, estado del servicio y sincronización de datos.
