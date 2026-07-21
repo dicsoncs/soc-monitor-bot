@@ -33,7 +33,23 @@ USERS_FILE = "usuarios_autorizados.json"
 # SEGURIDAD
 # ========================================
 
-usuarios_logueados = set()
+SESSION_FILE = "sesiones.json"
+
+def cargar_sesiones():
+    try:
+        if os.path.exists(SESSION_FILE):
+            with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+    except:
+        pass
+
+    return set()
+
+def guardar_sesiones():
+    with open(SESSION_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(usuarios_logueados), f)
+
+usuarios_logueados = cargar_sesiones()
 
 
 def convertir_ids_env(valor):
