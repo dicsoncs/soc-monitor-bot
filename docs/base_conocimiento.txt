@@ -382,13 +382,22 @@ Configuración desde Dial Plan Policy.
 PRUEBA:
 Esto es una prueba del SOC Assistant.
 
-COMO VALIDAR POTENCIA:
+POTENCIA:
+Validación de Potencia Óptica.
 1. Ingresar al servicio.
 2. ONU Optical Module Info.
 3. Revisar Rx Optical Power.
 4. Valor recomendado hasta -23 dBm.
 
-POTENCIA:
+COMO VALIDAR POTENCIA:
+Validación de Potencia Óptica.
+1. Ingresar al servicio.
+2. ONU Optical Module Info.
+3. Revisar Rx Optical Power.
+4. Valor recomendado hasta -23 dBm.
+
+VALIDAR POTENCIA:
+Validación de Potencia Óptica.
 1. Ingresar al servicio.
 2. ONU Optical Module Info.
 3. Revisar Rx Optical Power.
