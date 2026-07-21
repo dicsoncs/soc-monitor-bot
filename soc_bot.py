@@ -27,30 +27,49 @@ ADMIN_USER_IDS_ENV = os.getenv("ADMIN_USER_IDS", "")
 ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower() == "true"
 
 USERS_FILE = "usuarios_autorizados.json"
-
-
-# ========================================
-# SEGURIDAD
-# ========================================
-
 SESSION_FILE = "sesiones.json"
+
+
+# ========================================
+# FUNCIONES DE SESIÓN
+# ========================================
 
 def cargar_sesiones():
     try:
         if os.path.exists(SESSION_FILE):
             with open(SESSION_FILE, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-    except:
-        pass
+                data = json.load(f)
+
+            if isinstance(data, list):
+                return set(int(x) for x in data)
+
+    except Exception as e:
+        print("Error cargando sesiones:", e)
 
     return set()
 
+
 def guardar_sesiones():
-    with open(SESSION_FILE, "w", encoding="utf-8") as f:
-        json.dump(list(usuarios_logueados), f)
+    try:
+        with open(SESSION_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                sorted(list(usuarios_logueados)),
+                f,
+                indent=4
+            )
+
+        print("Sesiones guardadas correctamente")
+
+    except Exception as e:
+        print("Error guardando sesiones:", e)
+
 
 usuarios_logueados = cargar_sesiones()
 
+
+# ========================================
+# FUNCIONES DE USUARIOS
+# ========================================
 
 def convertir_ids_env(valor):
     ids = set()
@@ -78,7 +97,11 @@ def cargar_usuarios_dinamicos():
             with open(USERS_FILE, "r", encoding="utf-8") as archivo:
                 data = json.load(archivo)
 
-            return set(int(x) for x in data.get("usuarios", []))
+            if isinstance(data, dict):
+                return set(int(x) for x in data.get("usuarios", []))
+
+            if isinstance(data, list):
+                return set(int(x) for x in data)
 
     except Exception as e:
         print("Error cargando usuarios dinámicos:", e)
@@ -141,14 +164,14 @@ try:
     with open("docs/base_conocimiento.txt", "r", encoding="utf-8") as archivo:
         contenido = archivo.read()
 
-    # Convierte entidades HTML si existieran
     contenido = html.unescape(contenido)
 
-    # Limpieza de saltos HTML
+    contenido = contenido.replace("&lt;br&gt;", "\n\n")
+    contenido = contenido.replace("&lt;br/&gt;", "\n\n")
+    contenido = contenido.replace("&lt;br /&gt;", "\n\n")
     contenido = contenido.replace("<br>", "\n\n")
     contenido = contenido.replace("<br/>", "\n\n")
     contenido = contenido.replace("<br />", "\n\n")
-    contenido = contenido.replace("&lt;br&gt;", "\n\n")
 
     bloques = contenido.split("\n\n")
 
@@ -196,18 +219,13 @@ async def validar_acceso(update: Update, mensaje_original: str):
         if mensaje_original.strip() == ACCESS_CODE:
 
             usuarios_logueados.add(user_id)
-
-guardar_sesiones()
-
-await update.message.reply_text(
-    "✅ Acceso autorizado.\n\n"
-    "Bienvenido al SOC Assistant."
-)
+            guardar_sesiones()
 
             await update.message.reply_text(
                 "✅ Acceso autorizado.\n\n"
                 "Bienvenido al SOC Assistant."
             )
+
             return False
 
         await update.message.reply_text(
@@ -362,6 +380,7 @@ async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if eliminar_id in usuarios_logueados:
         usuarios_logueados.remove(eliminar_id)
+        guardar_sesiones()
 
     await update.message.reply_text(
         "✅ Usuario eliminado correctamente.\n\n"
@@ -413,6 +432,7 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in usuarios_logueados:
 
         usuarios_logueados.remove(user_id)
+        guardar_sesiones()
 
         await update.message.reply_text(
             "🔒 Sesión cerrada correctamente."
@@ -435,7 +455,7 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mensaje = limpiar_mensaje(mensaje_original)
     user_id = update.effective_user.id
 
-    # Evitar que la contraseña SOCENTEL2026 se interprete como SOC
+    # Evitar que la contraseña se interprete como consulta
     if mensaje_original.strip() == ACCESS_CODE and user_id in usuarios_logueados:
 
         await update.message.reply_text(
