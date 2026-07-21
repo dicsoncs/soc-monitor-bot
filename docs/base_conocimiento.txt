@@ -69,3 +69,18 @@ Equipo encargado de la atención técnica especializada.
 
 SEVERIDAD ALTA:
 Evento que impacta múltiples clientes o servicios críticos.
+
+ONU:
+Optical Network Unit.
+Equipo instalado en el cliente final.
+
+NOC:
+Network Operations Center.
+Área encargada del monitoreo y operación de la red.
+
+FAN SHARING:
+Plataforma utilizada para el monitoreo de servicios GPON.
+
+NCE:
+Network Cloud Engine.
+Plataforma utilizada para la administración y monitoreo de la red GPON.
