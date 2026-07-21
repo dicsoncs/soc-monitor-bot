@@ -23,11 +23,13 @@ ACCESS_CODE = os.getenv("ACCESS_CODE", "SOCENTEL2026")
 AUTHORIZED_USER_IDS_ENV = os.getenv("AUTHORIZED_USER_IDS", "")
 ADMIN_USER_IDS_ENV = os.getenv("ADMIN_USER_IDS", "")
 
+ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower() == "true"
+
 USERS_FILE = "usuarios_autorizados.json"
 
 
 # ========================================
-# SEGURIDAD - USUARIOS
+# SEGURIDAD
 # ========================================
 
 usuarios_logueados = set()
@@ -49,7 +51,6 @@ def convertir_ids_env(valor):
 USUARIOS_BASE = convertir_ids_env(AUTHORIZED_USER_IDS_ENV)
 ADMIN_USERS = convertir_ids_env(ADMIN_USER_IDS_ENV)
 
-# Si no configuras ADMIN_USER_IDS, se tomarán como admin los AUTHORIZED_USER_IDS
 if not ADMIN_USERS:
     ADMIN_USERS = set(USUARIOS_BASE)
 
@@ -72,9 +73,7 @@ def guardar_usuarios_dinamicos(usuarios):
     try:
         with open(USERS_FILE, "w", encoding="utf-8") as archivo:
             json.dump(
-                {
-                    "usuarios": sorted(list(usuarios))
-                },
+                {"usuarios": sorted(list(usuarios))},
                 archivo,
                 indent=4
             )
@@ -106,8 +105,8 @@ try:
     with open("docs/base_conocimiento.txt", "r", encoding="utf-8") as archivo:
         contenido = archivo.read()
 
-    # Limpieza por si quedó algún <br>
     contenido = contenido.replace("<br>", "\n\n")
+    contenido = contenido.replace("&lt;br&gt;", "\n\n")
 
     bloques = contenido.split("\n\n")
 
@@ -148,16 +147,20 @@ async def validar_acceso(update: Update, mensaje_original: str):
     user_id = update.effective_user.id
     usuarios_autorizados = obtener_usuarios_autorizados()
 
-    # Validar si el usuario está autorizado
-    if user_id not in usuarios_autorizados:
+    print(f"Mensaje recibido de usuario {user_id}: {mensaje_original}")
 
-        await update.message.reply_text(
-            "⛔ Usuario no autorizado.\n\n"
-            f"Tu ID de Telegram es:\n{user_id}\n\n"
-            "Solicita al administrador del SOC Assistant que te agregue con:\n"
-            f"/agregarusuario {user_id}"
-        )
-        return False
+    # Si ALLOW_ALL_USERS está activo, no valida ID
+    if not ALLOW_ALL_USERS:
+
+        if user_id not in usuarios_autorizados:
+
+            await update.message.reply_text(
+                "⛔ Usuario no autorizado.\n\n"
+                f"Tu ID de Telegram es:\n{user_id}\n\n"
+                "Solicita al administrador que te agregue con:\n"
+                f"/agregarusuario {user_id}"
+            )
+            return False
 
     # Validar contraseña
     if user_id not in usuarios_logueados:
@@ -206,6 +209,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Hola.\n\n"
         "Soy el Assistant del SOC."
     )
+
+    if ALLOW_ALL_USERS:
+        if user_id not in usuarios_logueados:
+            await update.message.reply_text(
+                "🔐 Ingresa la contraseña de acceso."
+            )
+        return
 
     usuarios_autorizados = obtener_usuarios_autorizados()
 
@@ -264,3 +274,282 @@ async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     nuevo_id = int(nuevo_id)
 
+    USUARIOS_DINAMICOS.add(nuevo_id)
+    guardar_usuarios_dinamicos(USUARIOS_DINAMICOS)
+
+    await update.message.reply_text(
+        "✅ Usuario agregado correctamente.\n\n"
+        f"ID autorizado:\n{nuevo_id}"
+    )
+
+
+# ========================================
+# COMANDO /ELIMINARUSUARIO
+# ========================================
+
+async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    admin_id = update.effective_user.id
+
+    if not es_admin(admin_id):
+
+        await update.message.reply_text(
+            "⛔ No tienes permisos de administrador para eliminar usuarios."
+        )
+        return
+
+    if not context.args:
+
+        await update.message.reply_text(
+            "Uso correcto:\n\n"
+            "/eliminarusuario ID_TELEGRAM\n\n"
+            "Ejemplo:\n"
+            "/eliminarusuario 123456789"
+        )
+        return
+
+    eliminar_id = context.args[0].strip()
+
+    if not eliminar_id.isdigit():
+
+        await update.message.reply_text(
+            "⚠️ El ID debe ser numérico."
+        )
+        return
+
+    eliminar_id = int(eliminar_id)
+
+    if eliminar_id in USUARIOS_DINAMICOS:
+        USUARIOS_DINAMICOS.remove(eliminar_id)
+        guardar_usuarios_dinamicos(USUARIOS_DINAMICOS)
+
+    if eliminar_id in usuarios_logueados:
+        usuarios_logueados.remove(eliminar_id)
+
+    await update.message.reply_text(
+        "✅ Usuario eliminado correctamente.\n\n"
+        f"ID eliminado:\n{eliminar_id}"
+    )
+
+
+# ========================================
+# COMANDO /USUARIOS
+# ========================================
+
+async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    admin_id = update.effective_user.id
+
+    if not es_admin(admin_id):
+
+        await update.message.reply_text(
+            "⛔ No tienes permisos de administrador para listar usuarios."
+        )
+        return
+
+    usuarios_autorizados = obtener_usuarios_autorizados()
+
+    if not usuarios_autorizados:
+
+        await update.message.reply_text(
+            "No hay usuarios autorizados."
+        )
+        return
+
+    texto = "👥 Usuarios autorizados:\n\n"
+
+    for user_id in sorted(usuarios_autorizados):
+        tipo = "Admin" if user_id in ADMIN_USERS else "Usuario"
+        texto += f"- {user_id} ({tipo})\n"
+
+    await update.message.reply_text(texto)
+
+
+# ========================================
+# COMANDO /LOGOUT
+# ========================================
+
+async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.effective_user.id
+
+    if user_id in usuarios_logueados:
+
+        usuarios_logueados.remove(user_id)
+
+        await update.message.reply_text(
+            "🔒 Sesión cerrada correctamente."
+        )
+
+    else:
+
+        await update.message.reply_text(
+            "No tienes una sesión activa."
+        )
+
+
+# ========================================
+# RESPUESTAS LIBRES
+# ========================================
+
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    mensaje_original = update.message.text.strip()
+    mensaje = limpiar_mensaje(mensaje_original)
+
+    saludos = [
+        "hola",
+        "buenos dias",
+        "buen dia",
+        "buenas tardes",
+        "buenas noches"
+    ]
+
+    if mensaje in saludos:
+
+        await update.message.reply_text(
+            "👋 Hola.\n\n"
+            "Soy el Assistant del SOC."
+        )
+
+        acceso_ok = await validar_acceso(update, mensaje_original)
+
+        if not acceso_ok:
+            return
+
+        return
+
+    acceso_ok = await validar_acceso(update, mensaje_original)
+
+    if not acceso_ok:
+        return
+
+    if mensaje in BASE_CONOCIMIENTO:
+
+        await update.message.reply_text(
+            BASE_CONOCIMIENTO[mensaje]
+        )
+        return
+
+    for clave in sorted(BASE_CONOCIMIENTO.keys(), key=len, reverse=True):
+
+        clave_limpia = limpiar_mensaje(clave)
+
+        if clave_limpia in mensaje:
+
+            await update.message.reply_text(
+                BASE_CONOCIMIENTO[clave]
+            )
+            return
+
+    await update.message.reply_text(
+        "🤖 No encontré información en la base de conocimiento.\n\n"
+        "Prueba con:\n"
+        "SOC\n"
+        "GPON\n"
+        "OLT\n"
+        "HELIX\n"
+        "NCE\n"
+        "SMARTWIFI\n"
+        "FAN SHARING\n"
+        "HELIX CREAR TICKET\n"
+        "NCE TROUBLESHOOTING"
+    )
+
+
+# ========================================
+# COMANDOS DIRECTOS
+# ========================================
+
+async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    acceso_ok = await validar_acceso(update, "helix")
+
+    if not acceso_ok:
+        return
+
+    if "helix" in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO["helix"])
+    else:
+        await update.message.reply_text("HELIX no encontrado en la base de conocimiento.")
+
+
+async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    acceso_ok = await validar_acceso(update, "nce")
+
+    if not acceso_ok:
+        return
+
+    if "nce" in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO["nce"])
+    else:
+        await update.message.reply_text("NCE no encontrado en la base de conocimiento.")
+
+
+async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    acceso_ok = await validar_acceso(update, "smartwifi")
+
+    if not acceso_ok:
+        return
+
+    if "smartwifi" in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO["smartwifi"])
+    else:
+        await update.message.reply_text("SMARTWIFI no encontrado en la base de conocimiento.")
+
+
+async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    acceso_ok = await validar_acceso(update, "evento masivo")
+
+    if not acceso_ok:
+        return
+
+    if "evento masivo" in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO["evento masivo"])
+    else:
+        await update.message.reply_text("EVENTO MASIVO no encontrado en la base de conocimiento.")
+
+
+# ========================================
+# MANEJO DE ERRORES
+# ========================================
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+
+    print("Error detectado:", context.error)
+
+
+# ========================================
+# APP
+# ========================================
+
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("id", mi_id))
+app.add_handler(CommandHandler("logout", logout))
+
+app.add_handler(CommandHandler("agregarusuario", agregar_usuario))
+app.add_handler(CommandHandler("eliminarusuario", eliminar_usuario))
+app.add_handler(CommandHandler("usuarios", listar_usuarios))
+
+app.add_handler(CommandHandler("helix", helix))
+app.add_handler(CommandHandler("nce", nce))
+app.add_handler(CommandHandler("smartwifi", smartwifi))
+app.add_handler(CommandHandler("masivas", masivas))
+
+app.add_handler(
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        responder
+    )
+)
+
+app.add_error_handler(error_handler)
+
+print("Bot iniciado...")
+
+app.run_polling()
