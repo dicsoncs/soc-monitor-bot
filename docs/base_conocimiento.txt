@@ -66,6 +66,35 @@ Plataforma utilizada para gestión de servicios SIP y comunicaciones unificadas.
 BROADWORKS:
 Plataforma que integra voz, correo, video y servicios SIP.
 
+CLIENTE B2B:
+Cliente corporativo.
+
+CLIENTE B2C:
+Cliente residencial.
+
+SLA:
+Service Level Agreement.
+Acuerdo de nivel de servicio comprometido con el cliente.
+
+RCA:
+Root Cause Analysis.
+Análisis de causa raíz de una incidencia.
+
+SEVERIDAD ALTA:
+Incidente que afecta servicios críticos o una cantidad significativa de clientes.
+
+SEVERIDAD MEDIA:
+Incidente con impacto parcial sobre clientes o servicios.
+
+SEVERIDAD BAJA:
+Incidente con impacto reducido y sin afectación masiva.
+
+EVENTO MASIVO:
+Incidente que afecta múltiples clientes simultáneamente.
+
+CLIENTES AFECTADOS:
+Cantidad de usuarios impactados por una incidencia.
+
 CAIDA DE OLT:
 1. Validar alarmas.
 2. Revisar energía.
@@ -85,13 +114,38 @@ VALIDACION DE POTENCIA:
 3. Revisar Rx Optical Power.
 4. Valor recomendado hasta -23 dBm.
 
-VALIDAR FAN SHARING:
-1. Ingresar a Resource List.
-2. Buscar ONT SN.
-3. Revisar estado del servicio.
-4. Verificar OLT.
-5. Verificar PON Port.
-6. Verificar ONT ID.
+ESCALAMIENTO MASIVO:
+1. Validar impacto del evento.
+2. Identificar OLT afectada.
+3. Registrar ticket.
+4. Escalar a TCM.
+5. Informar a NOC.
+6. Realizar seguimiento hasta la normalización.
+
+PROVISION AAA:
+1. Registrar suscriptor.
+2. Asociar perfil de servicio.
+3. Configurar velocidad.
+4. Validar estado del usuario.
+
+ACS TR069:
+Protocolo utilizado para la gestión remota de equipos CPE desde un servidor ACS.
+
+ACS GESTION REMOTA:
+Permite gestionar ONT de forma remota, reduciendo visitas técnicas y optimizando tiempos operativos.
+
+ACS ACTUALIZACION FIRMWARE:
+Permite distribuir e instalar versiones de firmware en las ONT.
+
+ACS AUTOCONFIGURACION:
+Permite configurar automáticamente la ONT cuando se conecta por primera vez a la red.
+
+ACS BENEFICIOS:
+1. Mayor eficiencia operativa.
+2. Mejora de calidad del servicio.
+3. Gestión proactiva y reactiva.
+4. Escalabilidad.
+5. Flexibilidad para modificar servicios.
 
 BUSCAR SERIAL ACS:
 1. Ingresar a ACS Genie.
@@ -110,11 +164,172 @@ ACTUALIZAR FIRMWARE:
 3. Seleccionar firmware homologado.
 4. Verificar resultado.
 
-PROVISION AAA:
-Permite registrar suscriptores.
-Permite dar de baja suscriptores.
-Permite modificar estado del usuario.
-Permite modificar perfiles de velocidad.
+SMARTWIFI BUSCAR CLIENTE:
+1. Ingresar a Home Network.
+2. Seleccionar Subscriber List.
+3. Filtrar por orden de instalación.
+4. Seleccionar Subscriber ID.
+
+SMARTWIFI ALARMA ENERGIA:
+Alarma asociada a desconexión de fuente eléctrica o reinicio de la ONT.
+
+SMARTWIFI ALARMA FIBRA:
+Ingresar a Event List y validar los eventos asociados a fibra.
+
+SMARTWIFI NO ROAMING:
+Problema cuando las bandas 2.4 GHz y 5 GHz no utilizan el mismo SSID o contraseña.
+
+SMARTWIFI HIGH DNS DELAY:
+Problema relacionado a configuración DNS.
+
+SMARTWIFI VERIFICAR ONT:
+1. Ingresar a KPI View.
+2. Revisar Topology.
+3. Validar System Uptime.
+4. Revisar fechas Online y Offline.
+5. Revisar detalle técnico por MAC Address.
+
+SMARTWIFI CONFIGURAR WIFI:
+1. Ingresar a Issue View.
+2. Seleccionar WiFi Setting.
+3. Seleccionar Advanced Settings.
+4. Validar parámetros WiFi.
+
+SMARTWIFI CONFIGURAR ROAMING:
+1. Configurar SSID y contraseña en 2.4 GHz y 5 GHz.
+2. Validar opción Roaming.
+
+SMARTWIFI REINICIAR ONT:
+1. Ingresar a KPI View.
+2. Seleccionar Topology.
+3. Seleccionar ONT.
+4. Presionar Reboot.
+
+SCHAMAN:
+Herramienta utilizada para revisión, diagnóstico y validación de servicios.
+
+SCHAMAN REVISAR SERVICIO:
+1. Ingresar a Schaman.
+2. Colocar orden B2B o B2C.
+3. Revisar sesiones.
+4. Revisar dispositivos conectados.
+5. Revisar WiFi.
+6. Diagnosticar servicio.
+
+SCHAMAN DIAGNOSTICO:
+Permite visualizar alertas y eventos del servicio.
+
+SCHAMAN REINICIO SERVICIO:
+1. Ingresar a Vista Técnica.
+2. Revisar datos técnicos.
+3. Utilizar Reset ONT.
+
+SCHAMAN TEST VELOCIDAD:
+Realizar prueba mediante IPPING.
+
+SCHAMAN DISPOSITIVOS CONECTADOS:
+Permite revisar dispositivos asociados históricamente al servicio.
+
+SCHAMAN NOTIFICACION:
+La notificación a TCM se realiza mediante ticket Helix.
+
+HELIX DERIVACION TCM:
+Proceso de derivación de incidencias hacia TCM.
+
+HELIX FLUJO DERIVACION:
+1. Reportar incidente.
+2. Adjuntar evidencias.
+3. Crear ticket.
+4. Escalar a NOC.
+5. Derivar a TCM.
+6. Dar seguimiento.
+7. Cerrar incidencia.
+
+HELIX CREAR TICKET:
+1. Ingresar a Aplicaciones.
+2. Crear nueva incidencia.
+3. Relacionar OLT afectada.
+4. Definir impacto.
+5. Seleccionar TCM.
+6. Asignar ticket.
+7. Adjuntar evidencias.
+
+HELIX NOTIFICACION TCM:
+Realizar notificación por ticket Helix y confirmación telefónica.
+
+NCE INGRESO:
+1. Ingresar al portal NCE.
+2. Dar clic en OK.
+3. Seleccionar Network Management.
+
+NCE BUSCAR ORDEN:
+1. Ingresar orden.
+2. Buscar ONU asociada.
+3. Revisar información del servicio.
+
+NCE INVENTARIO:
+Permite validar estado del servicio, modelo ONT, firmware y parámetros asociados.
+
+NCE POTENCIA OPTICA:
+1. Ingresar a ONU Optical Module Info.
+2. Revisar Rx Optical Power.
+
+NCE TEST CONECTIVIDAD:
+1. Seleccionar Test.
+2. Seleccionar Remote Ping.
+3. Seleccionar WAN INTERNET.
+4. Ingresar IP.
+5. Ejecutar prueba.
+
+NCE PROVISION MANUAL:
+1. Resource.
+2. Access Resource.
+3. PON.
+4. GPON ONU.
+5. Buscar serie.
+6. Confirm ONU.
+7. Configurar perfiles.
+8. Aplicar configuración.
+9. Validar servicio.
+
+NCE DIAGNOSTICO:
+1. Ingresar a Alarm Monitor.
+2. Identificar avería.
+3. Revisar OLT.
+4. Revisar clientes afectados.
+
+NCE DYING GASP:
+Alarma generada cuando la ONT pierde energía o se apaga.
+
+NCE ESTADO ONT:
+Control Flag = Active.
+Run State = Online.
+Config State = Normal.
+Match State = Match.
+Management Mode = OMCI.
+
+NCE TROUBLESHOOTING:
+1. Main Topology.
+2. Seleccionar OLT.
+3. Abrir NE Explorer.
+4. GPON Management.
+5. GPON ONU.
+6. Analizar estado ONU.
+
+NCE COMANDOS:
+display ont optical-info slot all
+ont reset
+display port traffic
+display traffic service-port
+display ont info 0 all
+
+VALIDAR FAN SHARING:
+1. Ingresar a Resource List.
+2. Buscar ONT SN.
+3. Revisar estado del servicio.
+4. Verificar OLT.
+5. Verificar PON Port.
+6. Verificar ONT ID.
 
 PROVISION SIP:
 1. Ingresar a BroadWorks.
@@ -124,51 +339,45 @@ PROVISION SIP:
 5. Configurar Address.
 6. Configurar autenticación.
 
+BROADSOFT CREAR EMPRESA:
+Profile > Enterprises.
+Add Enterprise Wizard.
+
+BROADSOFT CREAR GRUPO:
+Profile > Groups.
+Add Group Wizard.
+
+BROADSOFT CREAR USUARIO:
+Profile > Users.
+Add User.
+
+BROADSOFT ADDRESS:
+Asociación de DID al usuario.
+
+BROADSOFT AUTHENTICATION:
+Utilities > Authentication.
+
+BROADSOFT REGISTRO SIP:
+Utilities > Registrations.
+
+BROADSOFT CONSULTA SBC:
+show registration sipd by-user
+show registration sipd by-route
+
 HUNT GROUP:
-Servicio utilizado para distribuir llamadas entre múltiples líneas SIP.
+Servicio de distribución de llamadas.
+
+SEQUENTIAL RING:
+Timbrado secuencial entre líneas.
 
 CALL PICKUP:
-Permite capturar llamadas dentro de un grupo.
+Captura de llamadas dentro del grupo.
 
 CORTE SIP:
-Permite realizar corte parcial o total de una línea SIP.
+Corte parcial o total mediante Intercept User.
 
-EVENTO MASIVO:
-Incidente que afecta múltiples clientes simultáneamente.
-
-ESCALAMIENTO MASIVO:
-1. Validar impacto del evento.
-2. Identificar OLT afectada.
-3. Registrar ticket.
-4. Escalar a TCM.
-5. Informar a NOC.
-6. Realizar seguimiento hasta la normalización.
-
-CLIENTES AFECTADOS:
-Cantidad de usuarios impactados por una incidencia.
-
-SEVERIDAD ALTA:
-Incidente que afecta servicios críticos o una cantidad significativa de clientes.
-
-SEVERIDAD MEDIA:
-Incidente con impacto parcial sobre clientes o servicios.
-
-SEVERIDAD BAJA:
-Incidente con impacto reducido y sin afectación masiva.
-
-CLIENTE B2B:
-Cliente corporativo.
-
-CLIENTE B2C:
-Cliente residencial.
-
-SLA:
-Service Level Agreement.
-Acuerdo de nivel de servicio comprometido con el cliente.
-
-RCA:
-Root Cause Analysis.
-Análisis de causa raíz de una incidencia.
+PREFIJO SALIDA:
+Configuración desde Dial Plan Policy.
 
 PRUEBA:
 Esto es una prueba del SOC Assistant.
