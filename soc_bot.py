@@ -528,8 +528,52 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ========================================
-# COMANDOS DIRECTOS
+# COMANDO /MENU
 # ========================================
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    acceso_ok = await validar_acceso(update, "menu")
+
+    if not acceso_ok:
+        return
+
+    texto = """
+📡 SOC Assistant
+
+═══════════════════════
+
+COMANDOS
+
+/menu
+/id
+/logout
+
+═══════════════════════
+
+CONSULTAS DISPONIBLES
+
+✅ SOC
+✅ GPON
+✅ OLT
+✅ ONT
+✅ HELIX
+✅ NCE
+✅ SMARTWIFI
+✅ FAN SHARING
+✅ POTENCIA
+
+═══════════════════════
+
+COMANDOS DIRECTOS
+
+/helix
+/nce
+/smartwifi
+/masivas
+"""
+
+    await update.message.reply_text(texto)
 
 async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -610,6 +654,7 @@ if not TOKEN:
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("menu", menu))
 app.add_handler(CommandHandler("id", mi_id))
 app.add_handler(CommandHandler("logout", logout))
 
