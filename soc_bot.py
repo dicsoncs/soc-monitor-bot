@@ -197,6 +197,13 @@ async def validar_acceso(update: Update, mensaje_original: str):
 
             usuarios_logueados.add(user_id)
 
+guardar_sesiones()
+
+await update.message.reply_text(
+    "✅ Acceso autorizado.\n\n"
+    "Bienvenido al SOC Assistant."
+)
+
             await update.message.reply_text(
                 "✅ Acceso autorizado.\n\n"
                 "Bienvenido al SOC Assistant."
