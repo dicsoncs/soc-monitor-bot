@@ -11,6 +11,7 @@ import os
 import re
 import json
 import html
+from io import BytesIO
 
 
 try:
@@ -86,6 +87,7 @@ def convertir_ids_env(valor):
     if valor:
         for item in valor.split(","):
             item = item.strip()
+
             if item.isdigit():
                 ids.add(int(item))
 
@@ -145,6 +147,7 @@ def normalizar_boton(texto):
         "gpon": "gpon",
         "olt": "gpon",
         "ont": "gpon",
+        "onu": "gpon",
         "nce gpon": "gpon",
 
         "🌐 nce": "nce",
@@ -446,6 +449,15 @@ def extraer_texto_pdf(ruta_pdf):
     return texto_total
 
 
+def cargar_bytes_pdf(ruta_pdf):
+    try:
+        with open(ruta_pdf, "rb") as archivo:
+            return archivo.read()
+    except Exception as e:
+        print(f"Error cargando PDF en memoria {ruta_pdf}: {e}")
+        return None
+
+
 def cargar_pdfs():
     try:
         print(f"Buscando PDFs en ruta: {DOCS_PATH}")
@@ -465,6 +477,14 @@ def cargar_pdfs():
                     print(f"Cargando PDF: {ruta_pdf}")
 
                     texto_pdf = extraer_texto_pdf(ruta_pdf)
+                    pdf_bytes = cargar_bytes_pdf(ruta_pdf)
+
+                    tamaño_mb = 0
+
+                    try:
+                        tamaño_mb = round(os.path.getsize(ruta_pdf) / (1024 * 1024), 2)
+                    except Exception:
+                        tamaño_mb = 0
 
                     BASE_PDFS.append(
                         {
@@ -472,19 +492,23 @@ def cargar_pdfs():
                             "ruta": ruta_pdf,
                             "texto": texto_pdf,
                             "texto_limpio": limpiar_mensaje(texto_pdf),
-                            "archivo_limpio": limpiar_mensaje(archivo)
+                            "archivo_limpio": limpiar_mensaje(archivo),
+                            "bytes": pdf_bytes,
+                            "tamano_mb": tamaño_mb
                         }
                     )
 
                     if texto_pdf and texto_pdf.strip():
-                        print(f"PDF cargado correctamente: {archivo}")
+                        print(f"PDF cargado correctamente: {archivo} - {tamaño_mb} MB")
                     else:
-                        print(f"PDF sin texto extraíble o escaneado: {archivo}")
+                        print(f"PDF sin texto extraíble o escaneado: {archivo} - {tamaño_mb} MB")
 
         pdfs_con_texto = len([p for p in BASE_PDFS if p["texto"].strip()])
+        pdfs_con_bytes = len([p for p in BASE_PDFS if p.get("bytes")])
 
         print(f"PDFs encontrados: {total_pdfs}")
         print(f"PDFs con texto cargado: {pdfs_con_texto}")
+        print(f"PDFs cargados en memoria: {pdfs_con_bytes}")
 
     except Exception as e:
         print("Error cargando PDFs:", e)
@@ -497,7 +521,9 @@ def listar_manuales_texto():
     texto = "📚 Manuales PDF disponibles:\n\n"
 
     for pdf in BASE_PDFS:
-        texto += f"• {pdf['archivo']}\n"
+        archivo = pdf.get("archivo", "")
+        tamano = pdf.get("tamano_mb", 0)
+        texto += f"• {archivo} ({tamano} MB)\n"
 
     texto += "\nPuedes solicitar uno así:\n"
     texto += "/manual gpon\n"
@@ -520,8 +546,12 @@ def obtener_manual_objetivo(consulta):
         "gpon": "ncegpon",
         "olt": "ncegpon",
         "ont": "ncegpon",
+        "onu": "ncegpon",
         "nce": "ncegpon",
         "potencia": "ncegpon",
+        "rx": "ncegpon",
+        "tx": "ncegpon",
+        "dbm": "ncegpon",
         "masiva": "ncegpon",
         "masivas": "ncegpon",
         "evento masivo": "ncegpon",
@@ -534,6 +564,7 @@ def obtener_manual_objetivo(consulta):
         "smart wifi": "smartwifi",
 
         "schaman": "schaman",
+        "shaman": "schaman",
 
         "fan sharing": "fan",
         "fan": "fan",
@@ -708,28 +739,59 @@ async def enviar_pdf_seguro(update: Update, pdf):
     if not pdf:
         return
 
-    ruta = pdf.get("ruta")
     archivo = pdf.get("archivo")
+    pdf_bytes = pdf.get("bytes")
+    tamano_mb = pdf.get("tamano_mb", 0)
+    ruta = pdf.get("ruta")
 
-    if not ruta or not os.path.exists(ruta):
-        print(f"No se encontró la ruta del PDF: {ruta}")
+    if not archivo:
         await update.message.reply_text(
-            "⚠️ Encontré el manual, pero no pude ubicar el archivo en el servidor."
+            "⚠️ No pude identificar el nombre del manual."
         )
         return
 
+    await update.message.reply_text(
+        f"📤 Preparando envío del manual: {archivo} ({tamano_mb} MB)..."
+    )
+
     try:
-        with open(ruta, "rb") as f:
+        if pdf_bytes:
+            pdf_file = BytesIO(pdf_bytes)
+            pdf_file.name = archivo
+
             await update.message.reply_document(
-                document=f,
+                document=pdf_file,
                 filename=archivo,
                 caption=f"📄 {archivo}",
                 protect_content=True,
-                read_timeout=90,
-                write_timeout=90,
-                connect_timeout=90,
-                pool_timeout=90
+                read_timeout=120,
+                write_timeout=120,
+                connect_timeout=120,
+                pool_timeout=120
             )
+
+            print(f"PDF enviado desde memoria: {archivo}")
+            return
+
+        if ruta and os.path.exists(ruta):
+            with open(ruta, "rb") as f:
+                await update.message.reply_document(
+                    document=f,
+                    filename=archivo,
+                    caption=f"📄 {archivo}",
+                    protect_content=True,
+                    read_timeout=120,
+                    write_timeout=120,
+                    connect_timeout=120,
+                    pool_timeout=120
+                )
+
+            print(f"PDF enviado desde disco: {archivo}")
+            return
+
+        await update.message.reply_text(
+            "⚠️ Encontré el manual, pero no pude ubicar el archivo en el servidor."
+        )
 
     except Exception as e:
         print(f"Error enviando PDF {archivo}: {e}")
@@ -1166,7 +1228,7 @@ def detectar_tema_inteligente(mensaje):
     if "smartwifi" in mensaje or "smart wifi" in mensaje:
         return "smartwifi"
 
-    if "schaman" in mensaje:
+    if "schaman" in mensaje or "shaman" in mensaje:
         return "schaman"
 
     if "nce" in mensaje:
@@ -1275,82 +1337,8 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     if not update.message or not update.message.text:
         return
-
-    mensaje_original = update.message.text.strip()
-    mensaje = normalizar_boton(mensaje_original)
-    user_id = update.effective_user.id
-
-    acceso_ok = await validar_acceso(update, mensaje_original)
-
-    if not acceso_ok:
-        return
-
-    registrar_consulta(user_id, mensaje_original)
-
-    if mensaje == "manuales":
-        await manuales(update, context)
-        return
-
-    if mensaje == "estadisticas":
-        await estadisticas(update, context)
-        return
-
-    if mensaje == "id":
-        await mi_id(update, context)
-        return
-
-    if mensaje == "logout":
-        await logout(update, context)
-        return
-
-    if mensaje == "manual":
-        texto = listar_manuales_texto()
-        await enviar_texto_largo(update, texto)
-        return
-
-    if mensaje.startswith("manual "):
-
-        consulta_manual = mensaje.replace(
-            "manual ",
-            "",
-            1
-        ).strip()
-
-        pdf = buscar_pdf_relacionado(
-            consulta_manual
-        )
-
-        if not pdf:
-            await update.message.reply_text(
-                f"No encontré manual relacionado con: {consulta_manual}"
-            )
-            return
-
-        await enviar_pdf_seguro(
-            update,
-            pdf
-        )
-
-        return
-
-    tema_detectado = detectar_tema_inteligente(
-        mensaje
-    )
-
-    if tema_detectado:
-        await responder_conocimiento(
-            update,
-            tema_detectado
-        )
-        return
-
-    await responder_conocimiento(
-        update,
-        mensaje
-    )
 
     mensaje_original = update.message.text.strip()
     mensaje = normalizar_boton(mensaje_original)
