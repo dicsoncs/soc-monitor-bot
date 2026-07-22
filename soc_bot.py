@@ -67,6 +67,19 @@ def limpiar_mensaje(texto):
     return texto
 
 
+def limpiar_texto_visible(texto):
+    if not texto:
+        return ""
+
+    texto = str(texto)
+    texto = html.unescape(texto)
+    texto = re.sub(r"<br\s*/?>", "\n", texto, flags=re.IGNORECASE)
+    texto = texto.replace("\r", "\n")
+    texto = re.sub(r"\n{3,}", "\n\n", texto)
+
+    return texto.strip()
+
+
 def convertir_ids_env(valor):
     ids = set()
 
@@ -153,8 +166,8 @@ def normalizar_boton(texto):
         "masivas": "evento masivo",
         "masiva": "evento masivo",
         "evento masivo": "evento masivo",
-        "fallas masivas": "evento masivo",
         "falla masiva": "evento masivo",
+        "fallas masivas": "evento masivo",
 
         "📚 manuales": "manuales",
         "manuales": "manuales",
@@ -353,8 +366,7 @@ def cargar_base_txt():
         with open(BASE_TXT_PATH, "r", encoding="utf-8") as archivo:
             contenido = archivo.read()
 
-        contenido = html.unescape(contenido)
-        contenido = re.sub(r"<br\s*/?>", "\n\n", contenido, flags=re.IGNORECASE)
+        contenido = limpiar_texto_visible(contenido)
 
         bloques = contenido.split("\n\n")
 
@@ -479,6 +491,29 @@ def cargar_pdfs():
         print("Error cargando PDFs:", e)
 
 
+def listar_manuales_texto():
+    if not BASE_PDFS:
+        return "⚠️ No hay manuales PDF cargados."
+
+    texto = "📚 Manuales PDF disponibles:\n\n"
+
+    for pdf in BASE_PDFS:
+        texto += f"• {pdf['archivo']}\n"
+
+    texto += "\nPuedes solicitar uno así:\n"
+    texto += "/manual gpon\n"
+    texto += "/manual helix\n"
+    texto += "/manual nce\n"
+    texto += "/manual smartwifi\n"
+    texto += "/manual schaman\n"
+    texto += "/manual aaa\n"
+    texto += "/manual acs\n"
+    texto += "/manual broadsoft\n"
+    texto += "/manual fan\n"
+
+    return texto
+
+
 def obtener_manual_objetivo(consulta):
     consulta_limpia = limpiar_mensaje(consulta)
 
@@ -499,6 +534,8 @@ def obtener_manual_objetivo(consulta):
         "smartwifi": "smartwifi",
         "smart wifi": "smartwifi",
 
+        "schaman": "schaman",
+
         "fan sharing": "fan",
         "fan": "fan",
 
@@ -507,12 +544,23 @@ def obtener_manual_objetivo(consulta):
 
         "aaa": "aaa",
 
-        "broadsoft": "broadsoft"
+        "broadsoft": "broadsoft",
+        "broad soft": "broadsoft"
     }
 
     for clave, manual in reglas.items():
         if clave in consulta_limpia:
             return manual
+
+    # Detección automática según nombre del PDF.
+    for pdf in BASE_PDFS:
+        archivo_limpio = pdf.get("archivo_limpio", "")
+        archivo_sin_pdf = archivo_limpio.replace(".pdf", "").replace("manual", "").strip()
+        palabras_archivo = archivo_sin_pdf.split()
+
+        for palabra in palabras_archivo:
+            if len(palabra) >= 3 and palabra in consulta_limpia:
+                return palabra
 
     return None
 
@@ -541,15 +589,15 @@ def buscar_pdf_relacionado(consulta):
         puntaje = 0
 
         if consulta_limpia in archivo_limpio:
-            puntaje += 30
+            puntaje += 40
 
         if consulta_limpia in texto_limpio:
-            puntaje += 10
+            puntaje += 15
 
         for palabra in palabras:
             if len(palabra) >= 3:
                 if palabra in archivo_limpio:
-                    puntaje += 8
+                    puntaje += 10
 
                 if palabra in texto_limpio:
                     puntaje += 1
@@ -579,6 +627,80 @@ def buscar_pdf_relacionado(consulta):
     )
 
     return candidatos[0][1]
+
+
+def buscar_fragmentos_pdf(consulta):
+    consulta_limpia = limpiar_mensaje(consulta)
+
+    if not consulta_limpia:
+        return None
+
+    palabras = [
+        palabra for palabra in consulta_limpia.split()
+        if len(palabra) >= 4
+    ]
+
+    if not palabras:
+        return None
+
+    resultados = []
+
+    for pdf in BASE_PDFS:
+        texto = pdf.get("texto", "")
+        texto_limpio = pdf.get("texto_limpio", "")
+
+        if not texto or not texto_limpio:
+            continue
+
+        puntaje = 0
+
+        for palabra in palabras:
+            if palabra in texto_limpio:
+                puntaje += 1
+
+        if puntaje == 0:
+            continue
+
+        posicion = -1
+
+        for palabra in palabras:
+            posicion = texto_limpio.find(palabra)
+            if posicion != -1:
+                break
+
+        if posicion == -1:
+            continue
+
+        inicio = max(0, posicion - 800)
+        fin = min(len(texto), posicion + 2200)
+
+        fragmento = texto[inicio:fin].strip()
+
+        resultados.append(
+            {
+                "archivo": pdf.get("archivo", ""),
+                "puntaje": puntaje,
+                "fragmento": fragmento
+            }
+        )
+
+    if not resultados:
+        return None
+
+    resultados = sorted(
+        resultados,
+        key=lambda x: x["puntaje"],
+        reverse=True
+    )
+
+    respuesta = "🔎 Encontré información relacionada en los manuales:\n\n"
+
+    for item in resultados[:MAX_RESULTS]:
+        respuesta += f"📄 Manual: {item['archivo']}\n"
+        respuesta += f"{item['fragmento']}\n\n"
+        respuesta += "────────────────────\n\n"
+
+    return respuesta.strip()
 
 
 async def enviar_pdf_seguro(update: Update, pdf):
@@ -858,7 +980,7 @@ async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tipo = "Admin" if user_id in ADMIN_USERS else "Usuario"
         texto += f"- {user_id} ({tipo})\n"
 
-    await update.message.reply_text(texto)
+    await enviar_texto_largo(update, texto)
 
 
 # ========================================
@@ -901,6 +1023,8 @@ CONSULTAS DISPONIBLES
 ✅ MASIVAS
 ✅ ACS
 ✅ BROADSOFT
+✅ SCHAMAN
+✅ AAA
 
 ═══════════════════════
 
@@ -920,6 +1044,8 @@ manual gpon
 /manual helix
 /manual nce
 /manual potencia
+/manual smartwifi
+/manual schaman
 validar potencia
 evento masivo
 """
@@ -936,22 +1062,7 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    if not BASE_PDFS:
-        await update.message.reply_text(
-            "⚠️ No hay manuales PDF cargados."
-        )
-        return
-
-    texto = "📚 Manuales PDF cargados:\n\n"
-
-    for pdf in BASE_PDFS:
-        texto += f"• {pdf['archivo']}\n"
-
-    texto += "\nEjemplos:\n"
-    texto += "/manual gpon\n"
-    texto += "/manual helix\n"
-    texto += "/manual nce\n"
-    texto += "/manual potencia\n"
+    texto = listar_manuales_texto()
 
     await enviar_texto_largo(update, texto)
 
@@ -963,15 +1074,21 @@ async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not context.args:
-        await update.message.reply_text(
+        texto = (
             "Uso correcto:\n\n"
             "/manual palabra_clave\n\n"
             "Ejemplos:\n"
             "/manual gpon\n"
             "/manual helix\n"
             "/manual nce\n"
-            "/manual potencia"
+            "/manual potencia\n"
+            "/manual smartwifi\n"
+            "/manual schaman\n\n"
         )
+
+        texto += listar_manuales_texto()
+
+        await enviar_texto_largo(update, texto)
         return
 
     consulta = " ".join(context.args).strip()
@@ -982,7 +1099,8 @@ async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not pdf:
         await update.message.reply_text(
-            f"No encontré manual relacionado con: {consulta}"
+            f"No encontré manual relacionado con: {consulta}\n\n"
+            "Usa /manuales para ver la lista disponible."
         )
         return
 
@@ -1048,6 +1166,9 @@ def detectar_tema_inteligente(mensaje):
     if "smartwifi" in mensaje or "smart wifi" in mensaje:
         return "smartwifi"
 
+    if "schaman" in mensaje:
+        return "schaman"
+
     if "nce" in mensaje:
         return "nce"
 
@@ -1063,7 +1184,7 @@ def detectar_tema_inteligente(mensaje):
     if "aaa" in mensaje:
         return "aaa"
 
-    if "broadsoft" in mensaje:
+    if "broadsoft" in mensaje or "broad soft" in mensaje:
         return "broadsoft"
 
     return None
@@ -1085,6 +1206,12 @@ async def responder_conocimiento(update: Update, consulta):
             await enviar_texto_largo(update, respuesta_txt)
             return
 
+    respuesta_pdf = buscar_fragmentos_pdf(consulta)
+
+    if respuesta_pdf:
+        await enviar_texto_largo(update, respuesta_pdf)
+        return
+
     await update.message.reply_text(
         "No encontré información relacionada.\n\n"
         "Puedes intentar con:\n"
@@ -1093,7 +1220,9 @@ async def responder_conocimiento(update: Update, consulta):
         "HELIX\n"
         "POTENCIA\n"
         "MASIVAS\n"
-        "SMARTWIFI"
+        "SMARTWIFI\n"
+        "SCHAMAN\n\n"
+        "O puedes usar /manuales para ver los PDFs disponibles."
     )
 
 
@@ -1206,13 +1335,29 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if mensaje == "manual":
+        texto = (
+            "Uso correcto:\n\n"
+            "/manual palabra_clave\n\n"
+            "Ejemplos:\n"
+            "/manual gpon\n"
+            "/manual helix\n"
+            "/manual nce\n"
+            "/manual potencia\n\n"
+        )
+
+        texto += listar_manuales_texto()
+        await enviar_texto_largo(update, texto)
+        return
+
     if mensaje.startswith("manual "):
         consulta_manual = mensaje.replace("manual ", "", 1).strip()
         pdf = buscar_pdf_relacionado(consulta_manual)
 
         if not pdf:
             await update.message.reply_text(
-                f"No encontré manual relacionado con: {consulta_manual}"
+                f"No encontré manual relacionado con: {consulta_manual}\n\n"
+                "Usa /manuales para ver la lista disponible."
             )
             return
 
