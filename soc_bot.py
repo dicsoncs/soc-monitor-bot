@@ -981,19 +981,19 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def responder_conocimiento(update: Update, consulta):
+
     respuesta_txt = buscar_en_txt(consulta)
-    pdf = buscar_pdf_relacionado(consulta)
 
+    # Respuesta inmediata
     if respuesta_txt:
-        await enviar_texto_largo(update, respuesta_txt)
-
-    if pdf:
-        await enviar_pdf_seguro(update, pdf)
-
-    if not respuesta_txt and not pdf:
         await update.message.reply_text(
-            "No encontré información relacionada."
+            respuesta_txt
         )
+        return
+
+    await update.message.reply_text(
+        "No encontré información relacionada."
+    )
 
 
 # ========================================
