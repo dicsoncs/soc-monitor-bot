@@ -459,14 +459,20 @@ def obtener_manual_objetivo(consulta):
         "masiva": "ncegpon",
         "masivas": "ncegpon",
         "evento masivo": "ncegpon",
+
         "helix": "helix",
+
         "smartwifi": "smartwifi",
         "smart wifi": "smartwifi",
+
         "fan sharing": "fan",
         "fan": "fan",
+
         "acs": "acs",
         "genie": "acs",
+
         "aaa": "aaa",
+
         "broadsoft": "broadsoft"
     }
 
@@ -864,15 +870,8 @@ manual gpon
 /manual helix
 /manual nce
 /manual potencia
-como crear ticket helix
-nce troubleshooting
-validar potencia ont
-evento masivo gpon
-
-═══════════════════════
-
-🔒 Documentos protegidos:
-Los manuales se adjuntan con protección de contenido.
+validar potencia
+evento masivo
 """
 
     await update.message.reply_text(
