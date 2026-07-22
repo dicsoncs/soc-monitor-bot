@@ -12,6 +12,7 @@ import re
 import json
 import html
 
+
 try:
     from PyPDF2 import PdfReader
 except Exception:
@@ -48,6 +49,10 @@ def limpiar_mensaje(texto):
     if not texto:
         return ""
 
+    texto = str(texto)
+    texto = html.unescape(texto)
+    texto = re.sub(r"<br\s*/?>", " ", texto, flags=re.IGNORECASE)
+
     texto = texto.lower().strip()
     texto = texto.replace("¿", "")
     texto = texto.replace("?", "")
@@ -79,7 +84,7 @@ async def enviar_texto_largo(update: Update, texto, limite=3900):
     if not texto:
         return
 
-    texto = texto.strip()
+    texto = str(texto).strip()
 
     if len(texto) <= limite:
         await update.message.reply_text(texto)
@@ -100,7 +105,8 @@ async def enviar_texto_largo(update: Update, texto, limite=3900):
         partes.append(texto)
 
     for parte in partes:
-        await update.message.reply_text(parte)
+        if parte:
+            await update.message.reply_text(parte)
 
 
 def teclado_principal():
@@ -124,15 +130,45 @@ def normalizar_boton(texto):
 
     reemplazos = {
         "📡 gpon": "gpon",
+        "gpon": "gpon",
+        "olt": "gpon",
+        "ont": "gpon",
+        "nce gpon": "gpon",
+
         "🌐 nce": "nce",
+        "nce": "nce",
+
         "🎫 helix": "helix",
+        "helix": "helix",
+
         "📶 smartwifi": "smartwifi",
+        "smartwifi": "smartwifi",
+        "smart wifi": "smartwifi",
+
         "⚡ potencia": "potencia",
+        "potencia": "potencia",
+        "validar potencia": "potencia",
+
         "🚨 masivas": "evento masivo",
+        "masivas": "evento masivo",
+        "masiva": "evento masivo",
+        "evento masivo": "evento masivo",
+        "fallas masivas": "evento masivo",
+        "falla masiva": "evento masivo",
+
         "📚 manuales": "manuales",
+        "manuales": "manuales",
+
         "📊 estadisticas": "estadisticas",
+        "estadisticas": "estadisticas",
+
         "🆔 mi id": "id",
-        "🚪 logout": "logout"
+        "mi id": "id",
+        "id": "id",
+
+        "🚪 logout": "logout",
+        "logout": "logout",
+        "salir": "logout"
     }
 
     return reemplazos.get(texto_limpio, texto_limpio)
@@ -318,13 +354,7 @@ def cargar_base_txt():
             contenido = archivo.read()
 
         contenido = html.unescape(contenido)
-
-        contenido = contenido.replace("<br>", "\n\n")
-        contenido = contenido.replace("<br/>", "\n\n")
-        contenido = contenido.replace("<br />", "\n\n")
-        contenido = contenido.replace("&lt;br&gt;", "\n\n")
-        contenido = contenido.replace("&lt;br/&gt;", "\n\n")
-        contenido = contenido.replace("&lt;br /&gt;", "\n\n")
+        contenido = re.sub(r"<br\s*/?>", "\n\n", contenido, flags=re.IGNORECASE)
 
         bloques = contenido.split("\n\n")
 
@@ -454,11 +484,15 @@ def obtener_manual_objetivo(consulta):
 
     reglas = {
         "gpon": "ncegpon",
+        "olt": "ncegpon",
+        "ont": "ncegpon",
         "nce": "ncegpon",
         "potencia": "ncegpon",
         "masiva": "ncegpon",
         "masivas": "ncegpon",
         "evento masivo": "ncegpon",
+        "falla masiva": "ncegpon",
+        "fallas masivas": "ncegpon",
 
         "helix": "helix",
 
@@ -556,23 +590,35 @@ async def enviar_pdf_seguro(update: Update, pdf):
 
     if not ruta or not os.path.exists(ruta):
         print(f"No se encontró la ruta del PDF: {ruta}")
+        await update.message.reply_text(
+            "⚠️ Encontré el manual, pero no pude ubicar el archivo en el servidor."
+        )
         return
 
     try:
         with open(ruta, "rb") as f:
             await update.message.reply_document(
-    document=f,
-    filename=archivo,
-    caption=f"📄 {archivo}",
-    protect_content=True,
-    read_timeout=90,
-    write_timeout=90,
-    connect_timeout=90,
-    pool_timeout=90
-)
+                document=f,
+                filename=archivo,
+                caption=f"📄 {archivo}",
+                protect_content=True,
+                read_timeout=90,
+                write_timeout=90,
+                connect_timeout=90,
+                pool_timeout=90
+            )
 
     except Exception as e:
         print(f"Error enviando PDF {archivo}: {e}")
+        await update.message.reply_text(
+            "⚠️ Encontré el manual, pero Telegram demoró demasiado en enviarlo.\n\n"
+            "Puedes consultar directamente el tema escribiendo, por ejemplo:\n"
+            "GPON\n"
+            "NCE\n"
+            "HELIX\n"
+            "POTENCIA\n"
+            "MASIVAS"
+        )
 
 
 # ========================================
@@ -816,7 +862,7 @@ async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ========================================
-# MENU / MANUALES / ESTADISTICAS
+# MENÚ / MANUALES / ESTADÍSTICAS
 # ========================================
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -907,7 +953,7 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto += "/manual nce\n"
     texto += "/manual potencia\n"
 
-    await update.message.reply_text(texto)
+    await enviar_texto_largo(update, texto)
 
 
 async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -977,27 +1023,77 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for consulta, cantidad in top:
             mensaje += f"• {consulta}: {cantidad}\n"
 
-    await update.message.reply_text(mensaje)
+    await enviar_texto_largo(update, mensaje)
 
 
 # ========================================
 # RESPONDER CONOCIMIENTO
 # ========================================
 
-async def responder_conocimiento(update: Update, consulta):
+def detectar_tema_inteligente(mensaje):
+    mensaje = limpiar_mensaje(mensaje)
 
+    if not mensaje:
+        return None
+
+    if "potencia" in mensaje or "rx" in mensaje or "tx" in mensaje:
+        return "potencia"
+
+    if "evento masivo" in mensaje or "masiva" in mensaje or "masivas" in mensaje:
+        return "evento masivo"
+
+    if "helix" in mensaje or "ticket" in mensaje or "incidente" in mensaje:
+        return "helix"
+
+    if "smartwifi" in mensaje or "smart wifi" in mensaje:
+        return "smartwifi"
+
+    if "nce" in mensaje:
+        return "nce"
+
+    if "gpon" in mensaje or "olt" in mensaje or "ont" in mensaje:
+        return "gpon"
+
+    if "fan" in mensaje or "fan sharing" in mensaje:
+        return "fan sharing"
+
+    if "acs" in mensaje or "genie" in mensaje:
+        return "acs"
+
+    if "aaa" in mensaje:
+        return "aaa"
+
+    if "broadsoft" in mensaje:
+        return "broadsoft"
+
+    return None
+
+
+async def responder_conocimiento(update: Update, consulta):
     respuesta_txt = buscar_en_txt(consulta)
 
-    # Respuesta inmediata
     if respuesta_txt:
-    await enviar_texto_largo(
-        update,
-        respuesta_txt
-    )
+        await enviar_texto_largo(update, respuesta_txt)
         return
 
+    tema_detectado = detectar_tema_inteligente(consulta)
+
+    if tema_detectado and tema_detectado != limpiar_mensaje(consulta):
+        respuesta_txt = buscar_en_txt(tema_detectado)
+
+        if respuesta_txt:
+            await enviar_texto_largo(update, respuesta_txt)
+            return
+
     await update.message.reply_text(
-        "No encontré información relacionada."
+        "No encontré información relacionada.\n\n"
+        "Puedes intentar con:\n"
+        "GPON\n"
+        "NCE\n"
+        "HELIX\n"
+        "POTENCIA\n"
+        "MASIVAS\n"
+        "SMARTWIFI"
     )
 
 
@@ -1050,6 +1146,9 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+
     mensaje_original = update.message.text.strip()
     mensaje = normalizar_boton(mensaje_original)
     user_id = update.effective_user.id
@@ -1120,6 +1219,12 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await enviar_pdf_seguro(update, pdf)
         return
 
+    tema_detectado = detectar_tema_inteligente(mensaje)
+
+    if tema_detectado:
+        await responder_conocimiento(update, tema_detectado)
+        return
+
     await responder_conocimiento(update, mensaje)
 
 
@@ -1164,6 +1269,7 @@ app.add_handler(CommandHandler("logout", logout))
 app.add_handler(CommandHandler("agregarusuario", agregar_usuario))
 app.add_handler(CommandHandler("eliminarusuario", eliminar_usuario))
 app.add_handler(CommandHandler("usuarios", listar_usuarios))
+
 app.add_handler(CommandHandler("estadisticas", estadisticas))
 app.add_handler(CommandHandler("manuales", manuales))
 app.add_handler(CommandHandler("manual", manual))
