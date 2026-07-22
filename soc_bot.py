@@ -38,6 +38,7 @@ MAX_RESULTS = int(os.getenv("MAX_RESULTS", "1"))
 USERS_FILE = "usuarios_autorizados.json"
 SESSION_FILE = "sesiones.json"
 CONSULTAS_FILE = "consultas.json"
+PDF_FILE_IDS_FILE = "pdf_file_ids.json"
 
 BASE_TXT_PATH = "docs/base_conocimiento.txt"
 
@@ -353,6 +354,71 @@ def es_admin(user_id):
 
 
 # ========================================
+# CACHE FILE_ID TELEGRAM
+# ========================================
+
+def cargar_pdf_file_ids():
+    try:
+        if os.path.exists(PDF_FILE_IDS_FILE):
+            with open(PDF_FILE_IDS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if isinstance(data, dict):
+                return data
+
+    except Exception as e:
+        print("Error cargando file_id de PDFs:", e)
+
+    return {}
+
+
+def guardar_pdf_file_ids():
+    try:
+        with open(PDF_FILE_IDS_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                PDF_FILE_IDS,
+                f,
+                indent=4,
+                ensure_ascii=False
+            )
+
+        print("File IDs de PDFs guardados correctamente")
+
+    except Exception as e:
+        print("Error guardando file_id de PDFs:", e)
+
+
+PDF_FILE_IDS = cargar_pdf_file_ids()
+
+
+def claves_pdf(pdf):
+    claves = []
+
+    archivo = pdf.get("archivo", "")
+    archivo_limpio = limpiar_mensaje(archivo)
+
+    if archivo_limpio:
+        claves.append(archivo_limpio)
+        claves.append(archivo_limpio.replace(".pdf", "").strip())
+        claves.append(archivo_limpio.replace("manual", "").replace(".pdf", "").strip())
+
+    objetivo = obtener_manual_objetivo(archivo)
+
+    if objetivo:
+        claves.append(objetivo)
+
+    claves_limpias = []
+
+    for clave in claves:
+        clave = limpiar_mensaje(clave)
+
+        if clave and clave not in claves_limpias:
+            claves_limpias.append(clave)
+
+    return claves_limpias
+
+
+# ========================================
 # BASE DE CONOCIMIENTO TXT
 # ========================================
 
@@ -453,6 +519,7 @@ def cargar_bytes_pdf(ruta_pdf):
     try:
         with open(ruta_pdf, "rb") as archivo:
             return archivo.read()
+
     except Exception as e:
         print(f"Error cargando PDF en memoria {ruta_pdf}: {e}")
         return None
@@ -479,12 +546,10 @@ def cargar_pdfs():
                     texto_pdf = extraer_texto_pdf(ruta_pdf)
                     pdf_bytes = cargar_bytes_pdf(ruta_pdf)
 
-                    tamaño_mb = 0
-
                     try:
-                        tamaño_mb = round(os.path.getsize(ruta_pdf) / (1024 * 1024), 2)
+                        tamano_mb = round(os.path.getsize(ruta_pdf) / (1024 * 1024), 2)
                     except Exception:
-                        tamaño_mb = 0
+                        tamano_mb = 0
 
                     BASE_PDFS.append(
                         {
@@ -494,14 +559,14 @@ def cargar_pdfs():
                             "texto_limpio": limpiar_mensaje(texto_pdf),
                             "archivo_limpio": limpiar_mensaje(archivo),
                             "bytes": pdf_bytes,
-                            "tamano_mb": tamaño_mb
+                            "tamano_mb": tamano_mb
                         }
                     )
 
                     if texto_pdf and texto_pdf.strip():
-                        print(f"PDF cargado correctamente: {archivo} - {tamaño_mb} MB")
+                        print(f"PDF cargado correctamente: {archivo} - {tamano_mb} MB")
                     else:
-                        print(f"PDF sin texto extraíble o escaneado: {archivo} - {tamaño_mb} MB")
+                        print(f"PDF sin texto extraíble o escaneado: {archivo} - {tamano_mb} MB")
 
         pdfs_con_texto = len([p for p in BASE_PDFS if p["texto"].strip()])
         pdfs_con_bytes = len([p for p in BASE_PDFS if p.get("bytes")])
@@ -509,6 +574,7 @@ def cargar_pdfs():
         print(f"PDFs encontrados: {total_pdfs}")
         print(f"PDFs con texto cargado: {pdfs_con_texto}")
         print(f"PDFs cargados en memoria: {pdfs_con_bytes}")
+        print(f"PDFs con file_id guardado: {len(PDF_FILE_IDS)}")
 
     except Exception as e:
         print("Error cargando PDFs:", e)
@@ -523,9 +589,16 @@ def listar_manuales_texto():
     for pdf in BASE_PDFS:
         archivo = pdf.get("archivo", "")
         tamano = pdf.get("tamano_mb", 0)
-        texto += f"• {archivo} ({tamano} MB)\n"
 
-    texto += "\nPuedes solicitar uno así:\n"
+        cache_ok = "⚡" if any(clave in PDF_FILE_IDS for clave in claves_pdf(pdf)) else "📤"
+
+        texto += f"• {cache_ok} {archivo} ({tamano} MB)\n"
+
+    texto += "\nLeyenda:\n"
+    texto += "⚡ Envío rápido por file_id\n"
+    texto += "📤 Se enviará subiendo el PDF\n\n"
+
+    texto += "Puedes solicitar uno así:\n"
     texto += "/manual gpon\n"
     texto += "/manual helix\n"
     texto += "/manual nce\n"
@@ -750,48 +823,93 @@ async def enviar_pdf_seguro(update: Update, pdf):
         )
         return
 
+    # 1. Intentar envío rápido con file_id
+    for clave in claves_pdf(pdf):
+        file_id = PDF_FILE_IDS.get(clave)
+
+        if file_id:
+            try:
+                await update.message.reply_text(
+                    f"⚡ Enviando manual rápido: {archivo}..."
+                )
+
+                await update.message.reply_document(
+                    document=file_id,
+                    filename=archivo,
+                    caption=f"📄 {archivo}",
+                    protect_content=True,
+                    read_timeout=300,
+                    write_timeout=300,
+                    connect_timeout=300,
+                    pool_timeout=300
+                )
+
+                print(f"PDF enviado por file_id: {archivo} - clave: {clave}")
+                return
+
+            except Exception as e:
+                print(f"Error usando file_id para {archivo}: {e}")
+
+                if clave in PDF_FILE_IDS:
+                    del PDF_FILE_IDS[clave]
+                    guardar_pdf_file_ids()
+
+    # 2. Si no hay file_id, subir PDF desde memoria o disco
     await update.message.reply_text(
         f"📤 Preparando envío del manual: {archivo} ({tamano_mb} MB)..."
     )
 
     try:
+        mensaje_pdf = None
+
         if pdf_bytes:
             pdf_file = BytesIO(pdf_bytes)
             pdf_file.name = archivo
 
-            await update.message.reply_document(
+            mensaje_pdf = await update.message.reply_document(
                 document=pdf_file,
                 filename=archivo,
                 caption=f"📄 {archivo}",
                 protect_content=True,
-                read_timeout=120,
-                write_timeout=120,
-                connect_timeout=120,
-                pool_timeout=120
+                read_timeout=300,
+                write_timeout=300,
+                connect_timeout=300,
+                pool_timeout=300
             )
 
             print(f"PDF enviado desde memoria: {archivo}")
-            return
 
-        if ruta and os.path.exists(ruta):
+        elif ruta and os.path.exists(ruta):
             with open(ruta, "rb") as f:
-                await update.message.reply_document(
+                mensaje_pdf = await update.message.reply_document(
                     document=f,
                     filename=archivo,
                     caption=f"📄 {archivo}",
                     protect_content=True,
-                    read_timeout=120,
-                    write_timeout=120,
-                    connect_timeout=120,
-                    pool_timeout=120
+                    read_timeout=300,
+                    write_timeout=300,
+                    connect_timeout=300,
+                    pool_timeout=300
                 )
 
             print(f"PDF enviado desde disco: {archivo}")
+
+        else:
+            await update.message.reply_text(
+                "⚠️ Encontré el manual, pero no pude ubicar el archivo en el servidor."
+            )
             return
 
-        await update.message.reply_text(
-            "⚠️ Encontré el manual, pero no pude ubicar el archivo en el servidor."
-        )
+        # 3. Guardar file_id automáticamente para próximos envíos rápidos
+        if mensaje_pdf and mensaje_pdf.document:
+            file_id = mensaje_pdf.document.file_id
+
+            for clave in claves_pdf(pdf):
+                PDF_FILE_IDS[clave] = file_id
+
+            guardar_pdf_file_ids()
+
+            print(f"FILE_ID guardado para {archivo}: {file_id}")
 
     except Exception as e:
         print(f"Error enviando PDF {archivo}: {e}")
