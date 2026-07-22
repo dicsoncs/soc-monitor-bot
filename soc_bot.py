@@ -1277,7 +1277,58 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # RESPUESTAS LIBRES
 # ========================================
 
-async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE): if mensaje == "manual":
+        texto = (
+            "Uso correcto:\n\n"
+            "/manual palabra_clave\n\n"
+            "Ejemplos:\n"
+            "/manual gpon\n"
+            "/manual helix\n"
+            "/manual nce\n"
+            "/manual potencia\n"
+        )
+
+        await update.message.reply_text(texto)
+        return
+
+    if mensaje.startswith("manual "):
+        consulta_manual = mensaje.replace(
+            "manual ",
+            "",
+            1
+        ).strip()
+
+        pdf = buscar_pdf_relacionado(
+            consulta_manual
+        )
+
+        if not pdf:
+            await update.message.reply_text(
+                f"No encontré manual relacionado con: {consulta_manual}"
+            )
+            return
+
+        await enviar_pdf_seguro(
+            update,
+            pdf
+        )
+        return
+
+    tema_detectado = detectar_tema_inteligente(
+        mensaje
+    )
+
+    if tema_detectado:
+        await responder_conocimiento(
+            update,
+            tema_detectado
+        )
+        return
+
+    await responder_conocimiento(
+        update,
+        mensaje
+    )
     if not update.message or not update.message.text:
         return
 
