@@ -211,6 +211,7 @@ def guardar_consultas(data):
 
 
 def registrar_consulta(user_id, consulta):
+    return
     try:
         data = cargar_consultas()
 
