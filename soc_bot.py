@@ -1367,14 +1367,13 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await enviar_pdf_seguro(update, pdf)
         return
 
-    tema_detectado = detectar_tema_inteligente(mensaje)
+   tema_detectado = detectar_tema_inteligente(mensaje)
 
-    if tema_detectado:
-        await responder_conocimiento(update, tema_detectado)
-        return
+if tema_detectado:
+    await responder_conocimiento(update, tema_detectado)
+    return
 
-    await responder_conocimiento(update, mensaje)
-
+await responder_conocimiento(update, mensaje)
 
 # ========================================
 # MANEJO DE ERRORES
