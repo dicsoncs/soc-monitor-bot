@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -23,7 +23,6 @@ except Exception:
 # ========================================
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
 ACCESS_CODE = os.getenv("ACCESS_CODE", "SOCENTEL2026")
 
 AUTHORIZED_USER_IDS_ENV = os.getenv("AUTHORIZED_USER_IDS", "")
@@ -83,6 +82,69 @@ def convertir_ids_env(valor):
                 ids.add(int(item))
 
     return ids
+
+
+async def enviar_texto_largo(update: Update, texto, limite=3900):
+    if not texto:
+        return
+
+    texto = texto.strip()
+
+    if len(texto) <= limite:
+        await update.message.reply_text(texto)
+        return
+
+    partes = []
+
+    while len(texto) > limite:
+        corte = texto.rfind("\n", 0, limite)
+
+        if corte == -1:
+            corte = limite
+
+        partes.append(texto[:corte].strip())
+        texto = texto[corte:].strip()
+
+    if texto:
+        partes.append(texto)
+
+    for parte in partes:
+        await update.message.reply_text(parte)
+
+
+def teclado_principal():
+    botones = [
+        ["📡 GPON", "🌐 NCE"],
+        ["🎫 HELIX", "📶 SMARTWIFI"],
+        ["⚡ POTENCIA", "🚨 MASIVAS"],
+        ["📚 MANUALES", "📊 ESTADISTICAS"],
+        ["🆔 MI ID", "🚪 LOGOUT"]
+    ]
+
+    return ReplyKeyboardMarkup(
+        botones,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+def normalizar_boton(texto):
+    texto_limpio = limpiar_mensaje(texto)
+
+    reemplazos = {
+        "📡 gpon": "gpon",
+        "🌐 nce": "nce",
+        "🎫 helix": "helix",
+        "📶 smartwifi": "smartwifi",
+        "⚡ potencia": "potencia",
+        "🚨 masivas": "evento masivo",
+        "📚 manuales": "manuales",
+        "📊 estadisticas": "estadisticas",
+        "🆔 mi id": "id",
+        "🚪 logout": "logout"
+    }
+
+    return reemplazos.get(texto_limpio, texto_limpio)
 
 
 # ========================================
@@ -174,6 +236,25 @@ def registrar_consulta(user_id, consulta):
         print("Error registrando consulta:", e)
 
 
+def obtener_top_consultas():
+    data = cargar_consultas()
+    conteo = {}
+
+    for item in data:
+        consulta = limpiar_mensaje(item.get("consulta", ""))
+
+        if consulta:
+            conteo[consulta] = conteo.get(consulta, 0) + 1
+
+    top = sorted(
+        conteo.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    return top[:5]
+
+
 # ========================================
 # FUNCIONES DE USUARIOS
 # ========================================
@@ -247,12 +328,12 @@ def cargar_base_txt():
 
         contenido = html.unescape(contenido)
 
-        contenido = contenido.replace("&lt;br&gt;", "\n\n")
-        contenido = contenido.replace("&lt;br/&gt;", "\n\n")
-        contenido = contenido.replace("&lt;br /&gt;", "\n\n")
         contenido = contenido.replace("<br>", "\n\n")
         contenido = contenido.replace("<br/>", "\n\n")
         contenido = contenido.replace("<br />", "\n\n")
+        contenido = contenido.replace("&lt;br&gt;", "\n\n")
+        contenido = contenido.replace("&lt;br/&gt;", "\n\n")
+        contenido = contenido.replace("&lt;br /&gt;", "\n\n")
 
         bloques = contenido.split("\n\n")
 
@@ -268,6 +349,28 @@ def cargar_base_txt():
 
     except Exception as e:
         print("Error cargando base TXT:", e)
+
+
+def buscar_en_txt(consulta):
+    consulta_limpia = limpiar_mensaje(consulta)
+
+    if not consulta_limpia:
+        return None
+
+    if consulta_limpia in BASE_CONOCIMIENTO:
+        return BASE_CONOCIMIENTO[consulta_limpia]
+
+    for clave in sorted(BASE_CONOCIMIENTO.keys(), key=len, reverse=True):
+        clave_limpia = limpiar_mensaje(clave)
+
+        if (
+            clave_limpia == consulta_limpia
+            or clave_limpia in consulta_limpia
+            or consulta_limpia in clave_limpia
+        ):
+            return BASE_CONOCIMIENTO[clave]
+
+    return None
 
 
 # ========================================
@@ -287,6 +390,14 @@ def extraer_texto_pdf(ruta_pdf):
     try:
         reader = PdfReader(ruta_pdf)
 
+        if getattr(reader, "is_encrypted", False):
+            try:
+                reader.decrypt("")
+                print(f"PDF cifrado desbloqueado sin contraseña: {ruta_pdf}")
+            except Exception as e:
+                print(f"PDF cifrado no desbloqueable: {ruta_pdf} - {e}")
+                return texto_total
+
         for numero_pagina, pagina in enumerate(reader.pages, start=1):
             try:
                 texto = pagina.extract_text()
@@ -295,10 +406,10 @@ def extraer_texto_pdf(ruta_pdf):
                     texto_total += f"\n\n[Página {numero_pagina}]\n{texto}"
 
             except Exception as e:
-                print(f"Error leyendo página {numero_pagina} de {ruta_pdf}:", e)
+                print(f"Error leyendo página {numero_pagina} de {ruta_pdf}: {e}")
 
     except Exception as e:
-        print(f"Error leyendo PDF {ruta_pdf}:", e)
+        print(f"Error leyendo PDF {ruta_pdf}: {e}")
 
     return texto_total
 
@@ -323,76 +434,161 @@ def cargar_pdfs():
 
                     texto_pdf = extraer_texto_pdf(ruta_pdf)
 
-                    if texto_pdf and texto_pdf.strip():
-                        BASE_PDFS.append(
-                            {
-                                "archivo": archivo,
-                                "ruta": ruta_pdf,
-                                "texto": texto_pdf,
-                                "texto_limpio": limpiar_mensaje(texto_pdf)
-                            }
-                        )
+                    BASE_PDFS.append(
+                        {
+                            "archivo": archivo,
+                            "ruta": ruta_pdf,
+                            "texto": texto_pdf,
+                            "texto_limpio": limpiar_mensaje(texto_pdf),
+                            "archivo_limpio": limpiar_mensaje(archivo)
+                        }
+                    )
 
+                    if texto_pdf and texto_pdf.strip():
                         print(f"PDF cargado correctamente: {archivo}")
                     else:
                         print(f"PDF sin texto extraíble o escaneado: {archivo}")
 
         print(f"PDFs encontrados: {total_pdfs}")
-        print(f"PDFs con texto cargado: {len(BASE_PDFS)}")
+        print(f"PDFs con texto cargado: {len([p for p in BASE_PDFS if p['texto'].strip()])}")
 
     except Exception as e:
         print("Error cargando PDFs:", e)
 
 
-def buscar_en_pdfs(consulta):
+def puntuar_pdf(pdf, consulta_limpia, palabras):
+    puntaje = 0
+
+    archivo_limpio = pdf.get("archivo_limpio", "")
+    texto_limpio = pdf.get("texto_limpio", "")
+
+    if consulta_limpia in archivo_limpio:
+        puntaje += 10
+
+    if consulta_limpia in texto_limpio:
+        puntaje += 6
+
+    for palabra in palabras:
+        if len(palabra) >= 3:
+            if palabra in archivo_limpio:
+                puntaje += 4
+
+            if palabra in texto_limpio:
+                puntaje += 1
+
+    sinonimos = {
+        "gpon": ["gpon", "ncegpon", "olt", "ont", "fibra"],
+        "helix": ["helix", "ticket", "incidente"],
+        "nce": ["nce", "troubleshooting", "diagnostico"],
+        "smartwifi": ["smartwifi", "smart wifi", "wifi"],
+        "fan sharing": ["fan sharing", "fan"],
+        "potencia": ["potencia", "rx", "tx", "dbm", "ont", "olt"],
+        "masivas": ["masiva", "masivas", "evento masivo", "clientes caidos"],
+        "evento masivo": ["masiva", "masivas", "evento masivo", "clientes caidos"],
+        "acs": ["acs", "genie"],
+        "broadsoft": ["broadsoft"]
+    }
+
+    for clave, valores in sinonimos.items():
+        if clave in consulta_limpia:
+            for valor in valores:
+                valor_limpio = limpiar_mensaje(valor)
+
+                if valor_limpio in archivo_limpio:
+                    puntaje += 5
+
+                if valor_limpio in texto_limpio:
+                    puntaje += 2
+
+    return puntaje
+
+
+def buscar_en_pdfs(consulta, limite=None):
     resultados = []
     consulta_limpia = limpiar_mensaje(consulta)
 
     if not consulta_limpia:
         return resultados
 
+    if limite is None:
+        limite = MAX_RESULTS
+
     palabras = consulta_limpia.split()
 
+    candidatos = []
+
     for pdf in BASE_PDFS:
-        texto_limpio = pdf["texto_limpio"]
+        puntaje = puntuar_pdf(pdf, consulta_limpia, palabras)
 
-        coincidencia = False
+        if puntaje > 0:
+            candidatos.append((puntaje, pdf))
 
-        if consulta_limpia in texto_limpio:
-            coincidencia = True
-        else:
-            coincidencias_palabras = 0
+    candidatos = sorted(
+        candidatos,
+        key=lambda x: x[0],
+        reverse=True
+    )
 
-            for palabra in palabras:
-                if len(palabra) >= 3 and palabra in texto_limpio:
-                    coincidencias_palabras += 1
+    for puntaje, pdf in candidatos[:limite]:
+        texto_original = pdf.get("texto", "")
+        texto_limpio = pdf.get("texto_limpio", "")
 
-            if coincidencias_palabras >= 1:
-                coincidencia = True
+        fragmento = ""
 
-        if coincidencia:
-            texto_original = pdf["texto"]
-
+        if texto_original.strip():
             posicion = texto_limpio.find(consulta_limpia)
 
             if posicion >= 0:
                 inicio = max(0, posicion - 500)
-                fin = min(len(texto_original), posicion + 1000)
+                fin = min(len(texto_original), posicion + 1200)
                 fragmento = texto_original[inicio:fin]
             else:
                 fragmento = texto_original[:1300]
+        else:
+            fragmento = "El manual fue encontrado, pero parece ser escaneado o no tiene texto extraíble."
 
-            resultados.append(
-                {
-                    "archivo": pdf["archivo"],
-                    "fragmento": cortar_texto(fragmento, 1000)
-                }
-            )
-
-        if len(resultados) >= MAX_RESULTS:
-            break
+        resultados.append(
+            {
+                "archivo": pdf["archivo"],
+                "ruta": pdf["ruta"],
+                "fragmento": cortar_texto(fragmento, 1000),
+                "puntaje": puntaje
+            }
+        )
 
     return resultados
+
+
+async def enviar_documentos_pdf(update: Update, resultados_pdf, limite=2):
+    enviados = 0
+    archivos_enviados = set()
+
+    for resultado in resultados_pdf:
+        if enviados >= limite:
+            break
+
+        ruta = resultado.get("ruta")
+        archivo = resultado.get("archivo")
+
+        if not ruta or not os.path.exists(ruta):
+            continue
+
+        if archivo in archivos_enviados:
+            continue
+
+        try:
+            with open(ruta, "rb") as f:
+                await update.message.reply_document(
+                    document=f,
+                    filename=archivo,
+                    caption=f"📄 Manual relacionado: {archivo}"
+                )
+
+            archivos_enviados.add(archivo)
+            enviados += 1
+
+        except Exception as e:
+            print(f"Error enviando PDF {archivo}: {e}")
 
 
 # ========================================
@@ -417,15 +613,13 @@ async def validar_acceso(update: Update, mensaje_original: str):
 
     print(f"Mensaje recibido de usuario {user_id}: {mensaje_original}")
 
-    # Si el usuario está autorizado por ENV o es admin, se loguea automático.
-    # Esto evita que a tu usuario principal le pida contraseña después de cada deploy.
     if user_id in usuarios_autorizados or user_id in ADMIN_USERS:
         if user_id not in usuarios_logueados:
             usuarios_logueados.add(user_id)
             guardar_sesiones()
+
         return True
 
-    # Si ALLOW_ALL_USERS está en false, bloquear usuarios no autorizados
     if not ALLOW_ALL_USERS:
         await update.message.reply_text(
             "⛔ Usuario no autorizado.\n\n"
@@ -435,7 +629,6 @@ async def validar_acceso(update: Update, mensaje_original: str):
         )
         return False
 
-    # Si ALLOW_ALL_USERS está en true, permitir acceso con contraseña
     if user_id not in usuarios_logueados:
         if mensaje_original.strip() == ACCESS_CODE:
             usuarios_logueados.add(user_id)
@@ -443,7 +636,8 @@ async def validar_acceso(update: Update, mensaje_original: str):
 
             await update.message.reply_text(
                 "✅ Acceso autorizado.\n\n"
-                "Bienvenido al SOC Assistant."
+                "Bienvenido al SOC Assistant.",
+                reply_markup=teclado_principal()
             )
 
             return False
@@ -489,7 +683,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(
             "✅ Acceso validado.\n\n"
-            "Puedes usar /menu para ver las opciones disponibles."
+            "Puedes usar /menu para ver las opciones disponibles.",
+            reply_markup=teclado_principal()
         )
         return
 
@@ -508,7 +703,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "Puedes usar /menu para ver las opciones disponibles."
+        "Puedes usar /menu para ver las opciones disponibles.",
+        reply_markup=teclado_principal()
     )
 
 
@@ -677,6 +873,7 @@ COMANDOS
 /logout
 /estadisticas
 /manuales
+/manual palabra_clave
 
 ═══════════════════════
 
@@ -703,9 +900,24 @@ COMANDOS DIRECTOS
 /nce
 /smartwifi
 /masivas
+
+═══════════════════════
+
+EJEMPLOS
+
+manual gpon
+manual helix
+manual potencia
+como crear ticket helix
+nce troubleshooting
+validar potencia ont
+evento masivo gpon
 """
 
-    await update.message.reply_text(texto)
+    await update.message.reply_text(
+        texto,
+        reply_markup=teclado_principal()
+    )
 
 
 # ========================================
@@ -733,7 +945,62 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for pdf in BASE_PDFS:
         texto += f"• {pdf['archivo']}\n"
 
+    texto += "\nPara buscar un manual usa:\n"
+    texto += "/manual gpon\n"
+    texto += "/manual helix\n"
+    texto += "/manual nce\n"
+    texto += "/manual potencia\n"
+
     await update.message.reply_text(texto)
+
+
+# ========================================
+# COMANDO /MANUAL
+# ========================================
+
+async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    acceso_ok = await validar_acceso(update, "manual")
+
+    if not acceso_ok:
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "Uso correcto:\n\n"
+            "/manual palabra_clave\n\n"
+            "Ejemplos:\n"
+            "/manual gpon\n"
+            "/manual helix\n"
+            "/manual nce\n"
+            "/manual potencia"
+        )
+        return
+
+    consulta = " ".join(context.args).strip()
+
+    registrar_consulta(update.effective_user.id, f"manual {consulta}")
+
+    resultados_pdf = buscar_en_pdfs(consulta, limite=3)
+
+    if not resultados_pdf:
+        await update.message.reply_text(
+            f"🤖 No encontré manual relacionado con: {consulta}"
+        )
+        return
+
+    respuesta = f"📚 Manuales relacionados con: {consulta}\n\n"
+
+    for resultado in resultados_pdf:
+        respuesta += f"📄 Manual: {resultado['archivo']}\n"
+        respuesta += f"{resultado['fragmento']}\n\n"
+
+    await enviar_texto_largo(update, respuesta)
+
+    await enviar_documentos_pdf(
+        update,
+        resultados_pdf,
+        limite=2
+    )
 
 
 # ========================================
@@ -747,9 +1014,9 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     data = cargar_consultas()
-
     total = len(data)
     ultimas = data[-5:]
+    top = obtener_top_consultas()
 
     mensaje = (
         "📊 ESTADÍSTICAS SOC\n\n"
@@ -766,7 +1033,70 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
             consulta = item.get("consulta", "")
             mensaje += f"• {consulta}\n"
 
+    mensaje += "\nTop consultas:\n"
+
+    if not top:
+        mensaje += "Aún no hay ranking de consultas.\n"
+    else:
+        for consulta, cantidad in top:
+            mensaje += f"• {consulta}: {cantidad}\n"
+
     await update.message.reply_text(mensaje)
+
+
+# ========================================
+# RESPONDER CON TXT + PDF
+# ========================================
+
+async def responder_conocimiento(update: Update, consulta):
+    respuesta_txt = buscar_en_txt(consulta)
+    resultados_pdf = buscar_en_pdfs(consulta, limite=MAX_RESULTS)
+
+    hubo_respuesta = False
+
+    if respuesta_txt:
+        await enviar_texto_largo(
+            update,
+            f"📌 Información encontrada en base SOC:\n\n{respuesta_txt}"
+        )
+        hubo_respuesta = True
+
+    if resultados_pdf:
+        respuesta_pdf = "📚 Información relacionada en manuales PDF:\n\n"
+
+        for resultado in resultados_pdf:
+            respuesta_pdf += f"📄 Manual: {resultado['archivo']}\n"
+            respuesta_pdf += f"{resultado['fragmento']}\n\n"
+
+        await enviar_texto_largo(update, respuesta_pdf)
+        await enviar_documentos_pdf(update, resultados_pdf, limite=2)
+
+        hubo_respuesta = True
+
+    if not hubo_respuesta:
+        await update.message.reply_text(
+            "🤖 No encontré información en la base de conocimiento ni en los manuales PDF.\n\n"
+            "Prueba con:\n"
+            "SOC\n"
+            "GPON\n"
+            "OLT\n"
+            "ONT\n"
+            "HELIX\n"
+            "NCE\n"
+            "SMARTWIFI\n"
+            "FAN SHARING\n"
+            "POTENCIA\n"
+            "ACS\n"
+            "BROADSOFT\n"
+            "MASIVAS\n"
+            "COMO VALIDAR POTENCIA\n"
+            "HELIX CREAR TICKET\n"
+            "NCE TROUBLESHOOTING\n\n"
+            "También puedes usar:\n"
+            "/manual gpon\n"
+            "/manual helix\n"
+            "/manual potencia"
+        )
 
 
 # ========================================
@@ -779,7 +1109,8 @@ async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    await responder_por_clave(update, "helix")
+    registrar_consulta(update.effective_user.id, "helix")
+    await responder_conocimiento(update, "helix")
 
 
 async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -788,7 +1119,8 @@ async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    await responder_por_clave(update, "nce")
+    registrar_consulta(update.effective_user.id, "nce")
+    await responder_conocimiento(update, "nce")
 
 
 async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -797,7 +1129,8 @@ async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    await responder_por_clave(update, "smartwifi")
+    registrar_consulta(update.effective_user.id, "smartwifi")
+    await responder_conocimiento(update, "smartwifi")
 
 
 async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -806,31 +1139,8 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not acceso_ok:
         return
 
-    await responder_por_clave(update, "evento masivo")
-
-
-async def responder_por_clave(update: Update, clave):
-    clave_limpia = limpiar_mensaje(clave)
-
-    if clave_limpia in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO[clave_limpia])
-        return
-
-    resultados_pdf = buscar_en_pdfs(clave)
-
-    if resultados_pdf:
-        respuesta = "📚 Encontré información en manuales PDF:\n\n"
-
-        for resultado in resultados_pdf:
-            respuesta += f"📄 Manual: {resultado['archivo']}\n"
-            respuesta += f"{resultado['fragmento']}\n\n"
-
-        await update.message.reply_text(respuesta[:3900])
-        return
-
-    await update.message.reply_text(
-        f"🤖 No encontré información relacionada con: {clave}"
-    )
+    registrar_consulta(update.effective_user.id, "evento masivo")
+    await responder_conocimiento(update, "evento masivo")
 
 
 # ========================================
@@ -839,7 +1149,7 @@ async def responder_por_clave(update: Update, clave):
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mensaje_original = update.message.text.strip()
-    mensaje = limpiar_mensaje(mensaje_original)
+    mensaje = normalizar_boton(mensaje_original)
     user_id = update.effective_user.id
 
     saludos = [
@@ -853,7 +1163,8 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if mensaje in saludos:
         await update.message.reply_text(
             "👋 Hola.\n\n"
-            "Soy el Assistant del SOC."
+            "Soy el Assistant del SOC.",
+            reply_markup=teclado_principal()
         )
 
         acceso_ok = await validar_acceso(update, mensaje_original)
@@ -864,6 +1175,22 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         registrar_consulta(user_id, mensaje_original)
         return
 
+    if mensaje == "id":
+        await mi_id(update, context)
+        return
+
+    if mensaje == "logout":
+        await logout(update, context)
+        return
+
+    if mensaje == "manuales":
+        await manuales(update, context)
+        return
+
+    if mensaje == "estadisticas":
+        await estadisticas(update, context)
+        return
+
     acceso_ok = await validar_acceso(update, mensaje_original)
 
     if not acceso_ok:
@@ -871,62 +1198,35 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     registrar_consulta(user_id, mensaje_original)
 
-    # Evitar que la contraseña se interprete como consulta
     if mensaje_original.strip() == ACCESS_CODE:
         await update.message.reply_text(
-            "✅ Ya tienes una sesión activa en el SOC Assistant."
+            "✅ Ya tienes una sesión activa en el SOC Assistant.",
+            reply_markup=teclado_principal()
         )
         return
 
-    # Coincidencia exacta TXT
-    if mensaje in BASE_CONOCIMIENTO:
-        await update.message.reply_text(
-            BASE_CONOCIMIENTO[mensaje]
-        )
-        return
+    if mensaje.startswith("manual "):
+        consulta_manual = mensaje.replace("manual ", "", 1).strip()
 
-    # Coincidencia flexible TXT
-    for clave in sorted(BASE_CONOCIMIENTO.keys(), key=len, reverse=True):
-        clave_limpia = limpiar_mensaje(clave)
+        resultados_pdf = buscar_en_pdfs(consulta_manual, limite=3)
 
-        if clave_limpia == mensaje or clave_limpia in mensaje or mensaje in clave_limpia:
+        if not resultados_pdf:
             await update.message.reply_text(
-                BASE_CONOCIMIENTO[clave]
+                f"🤖 No encontré manual relacionado con: {consulta_manual}"
             )
             return
 
-    # Búsqueda en PDFs
-    resultados_pdf = buscar_en_pdfs(mensaje_original)
-
-    if resultados_pdf:
-        respuesta = "📚 Encontré información en manuales PDF:\n\n"
+        respuesta = f"📚 Manuales relacionados con: {consulta_manual}\n\n"
 
         for resultado in resultados_pdf:
             respuesta += f"📄 Manual: {resultado['archivo']}\n"
             respuesta += f"{resultado['fragmento']}\n\n"
 
-        await update.message.reply_text(respuesta[:3900])
+        await enviar_texto_largo(update, respuesta)
+        await enviar_documentos_pdf(update, resultados_pdf, limite=2)
         return
 
-    await update.message.reply_text(
-        "🤖 No encontré información en la base de conocimiento ni en los manuales PDF.\n\n"
-        "Prueba con:\n"
-        "SOC\n"
-        "GPON\n"
-        "OLT\n"
-        "ONT\n"
-        "HELIX\n"
-        "NCE\n"
-        "SMARTWIFI\n"
-        "FAN SHARING\n"
-        "POTENCIA\n"
-        "ACS\n"
-        "BROADS0FT\n"
-        "MASIVAS\n"
-        "COMO VALIDAR POTENCIA\n"
-        "HELIX CREAR TICKET\n"
-        "NCE TROUBLESHOOTING"
-    )
+    await responder_conocimiento(update, mensaje)
 
 
 # ========================================
@@ -944,6 +1244,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 if not TOKEN:
     raise ValueError("No se encontró TELEGRAM_BOT_TOKEN en las variables de entorno.")
 
+
 async def post_init(application):
     try:
         await application.bot.delete_webhook(
@@ -952,6 +1253,7 @@ async def post_init(application):
         print("✅ Webhook eliminado correctamente")
     except Exception as e:
         print(f"Error eliminando webhook: {e}")
+
 
 app = (
     ApplicationBuilder()
@@ -970,6 +1272,7 @@ app.add_handler(CommandHandler("eliminarusuario", eliminar_usuario))
 app.add_handler(CommandHandler("usuarios", listar_usuarios))
 app.add_handler(CommandHandler("estadisticas", estadisticas))
 app.add_handler(CommandHandler("manuales", manuales))
+app.add_handler(CommandHandler("manual", manual))
 
 app.add_handler(CommandHandler("helix", helix))
 app.add_handler(CommandHandler("nce", nce))
@@ -991,4 +1294,3 @@ app.run_polling(
     drop_pending_updates=True,
     allowed_updates=Update.ALL_TYPES
 )
-
