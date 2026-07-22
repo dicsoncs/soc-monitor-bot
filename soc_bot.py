@@ -12,6 +12,11 @@ import re
 import json
 import html
 
+try:
+    from PyPDF2 import PdfReader
+except Exception:
+    PdfReader = None
+
 
 # ========================================
 # VARIABLES DE ENTORNO
@@ -26,9 +31,58 @@ ADMIN_USER_IDS_ENV = os.getenv("ADMIN_USER_IDS", "")
 
 ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower() == "true"
 
+DOCS_PATH = os.getenv("DOCS_PATH", "docs/manuales_pdf")
+MAX_RESULTS = int(os.getenv("MAX_RESULTS", "4"))
+
 USERS_FILE = "usuarios_autorizados.json"
 SESSION_FILE = "sesiones.json"
 CONSULTAS_FILE = "consultas.json"
+
+BASE_TXT_PATH = "docs/base_conocimiento.txt"
+
+
+# ========================================
+# FUNCIONES GENERALES
+# ========================================
+
+def limpiar_mensaje(texto):
+    if not texto:
+        return ""
+
+    texto = texto.lower().strip()
+    texto = texto.replace("¿", "")
+    texto = texto.replace("?", "")
+    texto = texto.replace("á", "a")
+    texto = texto.replace("é", "e")
+    texto = texto.replace("í", "i")
+    texto = texto.replace("ó", "o")
+    texto = texto.replace("ú", "u")
+    texto = texto.replace("ñ", "n")
+    texto = re.sub(r"\s+", " ", texto)
+
+    return texto
+
+
+def cortar_texto(texto, limite=900):
+    texto = texto.strip()
+
+    if len(texto) <= limite:
+        return texto
+
+    return texto[:limite].strip() + "..."
+
+
+def convertir_ids_env(valor):
+    ids = set()
+
+    if valor:
+        for item in valor.split(","):
+            item = item.strip()
+
+            if item.isdigit():
+                ids.add(int(item))
+
+    return ids
 
 
 # ========================================
@@ -124,19 +178,6 @@ def registrar_consulta(user_id, consulta):
 # FUNCIONES DE USUARIOS
 # ========================================
 
-def convertir_ids_env(valor):
-    ids = set()
-
-    if valor:
-        for item in valor.split(","):
-            item = item.strip()
-
-            if item.isdigit():
-                ids.add(int(item))
-
-    return ids
-
-
 USUARIOS_BASE = convertir_ids_env(AUTHORIZED_USER_IDS_ENV)
 ADMIN_USERS = convertir_ids_env(ADMIN_USER_IDS_ENV)
 
@@ -189,57 +230,181 @@ def es_admin(user_id):
 
 
 # ========================================
-# LIMPIEZA DE TEXTO
-# ========================================
-
-def limpiar_mensaje(texto):
-    texto = texto.lower().strip()
-    texto = texto.replace("¿", "")
-    texto = texto.replace("?", "")
-    texto = texto.replace("á", "a")
-    texto = texto.replace("é", "e")
-    texto = texto.replace("í", "i")
-    texto = texto.replace("ó", "o")
-    texto = texto.replace("ú", "u")
-    texto = texto.replace("ñ", "n")
-    texto = re.sub(r"\s+", " ", texto)
-
-    return texto
-
-
-# ========================================
-# BASE DE CONOCIMIENTO
+# BASE DE CONOCIMIENTO TXT
 # ========================================
 
 BASE_CONOCIMIENTO = {}
 
-try:
-    with open("docs/base_conocimiento.txt", "r", encoding="utf-8") as archivo:
-        contenido = archivo.read()
 
-    contenido = html.unescape(contenido)
+def cargar_base_txt():
+    try:
+        if not os.path.exists(BASE_TXT_PATH):
+            print("No se encontró base_conocimiento.txt")
+            return
 
-    contenido = contenido.replace("&lt;br&gt;", "\n\n")
-    contenido = contenido.replace("&lt;br/&gt;", "\n\n")
-    contenido = contenido.replace("&lt;br /&gt;", "\n\n")
-    contenido = contenido.replace("<br>", "\n\n")
-    contenido = contenido.replace("<br/>", "\n\n")
-    contenido = contenido.replace("<br />", "\n\n")
+        with open(BASE_TXT_PATH, "r", encoding="utf-8") as archivo:
+            contenido = archivo.read()
 
-    bloques = contenido.split("\n\n")
+        contenido = html.unescape(contenido)
 
-    for bloque in bloques:
-        bloque = bloque.strip()
+        contenido = contenido.replace("&lt;br&gt;", "\n\n")
+        contenido = contenido.replace("&lt;br/&gt;", "\n\n")
+        contenido = contenido.replace("&lt;br /&gt;", "\n\n")
+        contenido = contenido.replace("<br>", "\n\n")
+        contenido = contenido.replace("<br/>", "\n\n")
+        contenido = contenido.replace("<br />", "\n\n")
 
-        if ":" in bloque:
-            clave_original = bloque.split(":")[0].strip()
-            clave_limpia = limpiar_mensaje(clave_original)
-            BASE_CONOCIMIENTO[clave_limpia] = bloque
+        bloques = contenido.split("\n\n")
 
-    print("Base de conocimiento cargada correctamente")
+        for bloque in bloques:
+            bloque = bloque.strip()
 
-except Exception as e:
-    print("Error cargando base de conocimiento:", e)
+            if ":" in bloque:
+                clave_original = bloque.split(":")[0].strip()
+                clave_limpia = limpiar_mensaje(clave_original)
+                BASE_CONOCIMIENTO[clave_limpia] = bloque
+
+        print(f"Base TXT cargada correctamente: {len(BASE_CONOCIMIENTO)} entradas")
+
+    except Exception as e:
+        print("Error cargando base TXT:", e)
+
+
+# ========================================
+# BASE DE CONOCIMIENTO PDF
+# ========================================
+
+BASE_PDFS = []
+
+
+def extraer_texto_pdf(ruta_pdf):
+    texto_total = ""
+
+    if PdfReader is None:
+        print("PyPDF2 no está instalado. No se pueden leer PDFs.")
+        return texto_total
+
+    try:
+        reader = PdfReader(ruta_pdf)
+
+        for numero_pagina, pagina in enumerate(reader.pages, start=1):
+            try:
+                texto = pagina.extract_text()
+
+                if texto:
+                    texto_total += f"\n\n[Página {numero_pagina}]\n{texto}"
+
+            except Exception as e:
+                print(f"Error leyendo página {numero_pagina} de {ruta_pdf}:", e)
+
+    except Exception as e:
+        print(f"Error leyendo PDF {ruta_pdf}:", e)
+
+    return texto_total
+
+
+def cargar_pdfs():
+    try:
+        print(f"Buscando PDFs en ruta: {DOCS_PATH}")
+
+        if not os.path.exists(DOCS_PATH):
+            print(f"No existe la ruta de PDFs: {DOCS_PATH}")
+            return
+
+        total_pdfs = 0
+
+        for raiz, carpetas, archivos in os.walk(DOCS_PATH):
+            for archivo in archivos:
+                if archivo.lower().endswith(".pdf"):
+                    total_pdfs += 1
+                    ruta_pdf = os.path.join(raiz, archivo)
+
+                    print(f"Cargando PDF: {ruta_pdf}")
+
+                    texto_pdf = extraer_texto_pdf(ruta_pdf)
+
+                    if texto_pdf and texto_pdf.strip():
+                        BASE_PDFS.append(
+                            {
+                                "archivo": archivo,
+                                "ruta": ruta_pdf,
+                                "texto": texto_pdf,
+                                "texto_limpio": limpiar_mensaje(texto_pdf)
+                            }
+                        )
+
+                        print(f"PDF cargado correctamente: {archivo}")
+                    else:
+                        print(f"PDF sin texto extraíble o escaneado: {archivo}")
+
+        print(f"PDFs encontrados: {total_pdfs}")
+        print(f"PDFs con texto cargado: {len(BASE_PDFS)}")
+
+    except Exception as e:
+        print("Error cargando PDFs:", e)
+
+
+def buscar_en_pdfs(consulta):
+    resultados = []
+    consulta_limpia = limpiar_mensaje(consulta)
+
+    if not consulta_limpia:
+        return resultados
+
+    palabras = consulta_limpia.split()
+
+    for pdf in BASE_PDFS:
+        texto_limpio = pdf["texto_limpio"]
+
+        coincidencia = False
+
+        if consulta_limpia in texto_limpio:
+            coincidencia = True
+        else:
+            coincidencias_palabras = 0
+
+            for palabra in palabras:
+                if len(palabra) >= 3 and palabra in texto_limpio:
+                    coincidencias_palabras += 1
+
+            if coincidencias_palabras >= 1:
+                coincidencia = True
+
+        if coincidencia:
+            texto_original = pdf["texto"]
+
+            posicion = texto_limpio.find(consulta_limpia)
+
+            if posicion >= 0:
+                inicio = max(0, posicion - 500)
+                fin = min(len(texto_original), posicion + 1000)
+                fragmento = texto_original[inicio:fin]
+            else:
+                fragmento = texto_original[:1300]
+
+            resultados.append(
+                {
+                    "archivo": pdf["archivo"],
+                    "fragmento": cortar_texto(fragmento, 1000)
+                }
+            )
+
+        if len(resultados) >= MAX_RESULTS:
+            break
+
+    return resultados
+
+
+# ========================================
+# CARGA INICIAL DE CONOCIMIENTO
+# ========================================
+
+cargar_base_txt()
+cargar_pdfs()
+
+print("Base de conocimiento inicializada")
+print(f"Entradas TXT: {len(BASE_CONOCIMIENTO)}")
+print(f"Manuales PDF cargados: {len(BASE_PDFS)}")
 
 
 # ========================================
@@ -247,30 +412,32 @@ except Exception as e:
 # ========================================
 
 async def validar_acceso(update: Update, mensaje_original: str):
-
     user_id = update.effective_user.id
     usuarios_autorizados = obtener_usuarios_autorizados()
 
     print(f"Mensaje recibido de usuario {user_id}: {mensaje_original}")
 
-    # Validar ID solo si ALLOW_ALL_USERS está en false
+    # Si el usuario está autorizado por ENV o es admin, se loguea automático.
+    # Esto evita que a tu usuario principal le pida contraseña después de cada deploy.
+    if user_id in usuarios_autorizados or user_id in ADMIN_USERS:
+        if user_id not in usuarios_logueados:
+            usuarios_logueados.add(user_id)
+            guardar_sesiones()
+        return True
+
+    # Si ALLOW_ALL_USERS está en false, bloquear usuarios no autorizados
     if not ALLOW_ALL_USERS:
+        await update.message.reply_text(
+            "⛔ Usuario no autorizado.\n\n"
+            f"Tu ID de Telegram es:\n{user_id}\n\n"
+            "Solicita al administrador que te agregue con:\n"
+            f"/agregarusuario {user_id}"
+        )
+        return False
 
-        if user_id not in usuarios_autorizados:
-
-            await update.message.reply_text(
-                "⛔ Usuario no autorizado.\n\n"
-                f"Tu ID de Telegram es:\n{user_id}\n\n"
-                "Solicita al administrador que te agregue con:\n"
-                f"/agregarusuario {user_id}"
-            )
-            return False
-
-    # Validar contraseña
+    # Si ALLOW_ALL_USERS está en true, permitir acceso con contraseña
     if user_id not in usuarios_logueados:
-
         if mensaje_original.strip() == ACCESS_CODE:
-
             usuarios_logueados.add(user_id)
             guardar_sesiones()
 
@@ -285,6 +452,7 @@ async def validar_acceso(update: Update, mensaje_original: str):
             "🔒 Acceso restringido.\n\n"
             "Ingrese la contraseña para utilizar el SOC Assistant."
         )
+
         return False
 
     return True
@@ -295,7 +463,6 @@ async def validar_acceso(update: Update, mensaje_original: str):
 # ========================================
 
 async def mi_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     user_id = update.effective_user.id
 
     await update.message.reply_text(
@@ -308,27 +475,25 @@ async def mi_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     user_id = update.effective_user.id
+    usuarios_autorizados = obtener_usuarios_autorizados()
 
     await update.message.reply_text(
         "👋 Hola.\n\n"
         "Soy el Assistant del SOC."
     )
 
-    if ALLOW_ALL_USERS:
+    if user_id in usuarios_autorizados or user_id in ADMIN_USERS:
+        usuarios_logueados.add(user_id)
+        guardar_sesiones()
 
-        if user_id not in usuarios_logueados:
-            await update.message.reply_text(
-                "🔐 Ingresa la contraseña de acceso."
-            )
-
+        await update.message.reply_text(
+            "✅ Acceso validado.\n\n"
+            "Puedes usar /menu para ver las opciones disponibles."
+        )
         return
 
-    usuarios_autorizados = obtener_usuarios_autorizados()
-
-    if user_id not in usuarios_autorizados:
-
+    if not ALLOW_ALL_USERS:
         await update.message.reply_text(
             "🔒 Para usar el bot, primero debes estar autorizado.\n\n"
             f"Tu ID de Telegram es:\n{user_id}\n\n"
@@ -337,11 +502,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if user_id not in usuarios_logueados:
-
         await update.message.reply_text(
             "🔐 Ingresa la contraseña de acceso."
         )
         return
+
+    await update.message.reply_text(
+        "Puedes usar /menu para ver las opciones disponibles."
+    )
 
 
 # ========================================
@@ -349,18 +517,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     admin_id = update.effective_user.id
 
     if not es_admin(admin_id):
-
         await update.message.reply_text(
             "⛔ No tienes permisos de administrador para agregar usuarios."
         )
         return
 
     if not context.args:
-
         await update.message.reply_text(
             "Uso correcto:\n\n"
             "/agregarusuario ID_TELEGRAM\n\n"
@@ -372,7 +537,6 @@ async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nuevo_id = context.args[0].strip()
 
     if not nuevo_id.isdigit():
-
         await update.message.reply_text(
             "⚠️ El ID debe ser numérico.\n\n"
             "Ejemplo:\n"
@@ -385,6 +549,9 @@ async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     USUARIOS_DINAMICOS.add(nuevo_id)
     guardar_usuarios_dinamicos(USUARIOS_DINAMICOS)
 
+    usuarios_logueados.add(nuevo_id)
+    guardar_sesiones()
+
     await update.message.reply_text(
         "✅ Usuario agregado correctamente.\n\n"
         f"ID autorizado:\n{nuevo_id}"
@@ -396,18 +563,15 @@ async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     admin_id = update.effective_user.id
 
     if not es_admin(admin_id):
-
         await update.message.reply_text(
             "⛔ No tienes permisos de administrador para eliminar usuarios."
         )
         return
 
     if not context.args:
-
         await update.message.reply_text(
             "Uso correcto:\n\n"
             "/eliminarusuario ID_TELEGRAM\n\n"
@@ -419,7 +583,6 @@ async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     eliminar_id = context.args[0].strip()
 
     if not eliminar_id.isdigit():
-
         await update.message.reply_text(
             "⚠️ El ID debe ser numérico."
         )
@@ -446,11 +609,9 @@ async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     admin_id = update.effective_user.id
 
     if not es_admin(admin_id):
-
         await update.message.reply_text(
             "⛔ No tienes permisos de administrador para listar usuarios."
         )
@@ -459,7 +620,6 @@ async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
     usuarios_autorizados = obtener_usuarios_autorizados()
 
     if not usuarios_autorizados:
-
         await update.message.reply_text(
             "No hay usuarios autorizados."
         )
@@ -479,11 +639,9 @@ async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     user_id = update.effective_user.id
 
     if user_id in usuarios_logueados:
-
         usuarios_logueados.remove(user_id)
         guardar_sesiones()
 
@@ -492,96 +650,9 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     else:
-
         await update.message.reply_text(
             "No tienes una sesión activa."
         )
-
-
-# ========================================
-# RESPUESTAS LIBRES
-# ========================================
-
-async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    mensaje_original = update.message.text.strip()
-    mensaje = limpiar_mensaje(mensaje_original)
-    user_id = update.effective_user.id
-
-    # Evitar que la contraseña se interprete como consulta
-    if mensaje_original.strip() == ACCESS_CODE and user_id in usuarios_logueados:
-
-        await update.message.reply_text(
-            "✅ Ya tienes una sesión activa en el SOC Assistant."
-        )
-        return
-
-    saludos = [
-        "hola",
-        "buenos dias",
-        "buen dia",
-        "buenas tardes",
-        "buenas noches"
-    ]
-
-    if mensaje in saludos:
-
-        await update.message.reply_text(
-            "👋 Hola.\n\n"
-            "Soy el Assistant del SOC."
-        )
-
-        acceso_ok = await validar_acceso(update, mensaje_original)
-
-        if not acceso_ok:
-            return
-
-        registrar_consulta(user_id, mensaje_original)
-
-        return
-
-    acceso_ok = await validar_acceso(update, mensaje_original)
-
-    if not acceso_ok:
-        return
-
-    registrar_consulta(user_id, mensaje_original)
-
-    # Coincidencia exacta
-    if mensaje in BASE_CONOCIMIENTO:
-
-        await update.message.reply_text(
-            BASE_CONOCIMIENTO[mensaje]
-        )
-        return
-
-    # Coincidencia flexible
-    for clave in sorted(BASE_CONOCIMIENTO.keys(), key=len, reverse=True):
-
-        clave_limpia = limpiar_mensaje(clave)
-
-        if clave_limpia == mensaje or clave_limpia in mensaje or mensaje in clave_limpia:
-
-            await update.message.reply_text(
-                BASE_CONOCIMIENTO[clave]
-            )
-            return
-
-    await update.message.reply_text(
-        "🤖 No encontré información en la base de conocimiento.\n\n"
-        "Prueba con:\n"
-        "SOC\n"
-        "GPON\n"
-        "OLT\n"
-        "HELIX\n"
-        "NCE\n"
-        "SMARTWIFI\n"
-        "FAN SHARING\n"
-        "POTENCIA\n"
-        "COMO VALIDAR POTENCIA\n"
-        "HELIX CREAR TICKET\n"
-        "NCE TROUBLESHOOTING"
-    )
 
 
 # ========================================
@@ -589,7 +660,6 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     acceso_ok = await validar_acceso(update, "menu")
 
     if not acceso_ok:
@@ -606,6 +676,7 @@ COMANDOS
 /id
 /logout
 /estadisticas
+/manuales
 
 ═══════════════════════
 
@@ -620,6 +691,9 @@ CONSULTAS DISPONIBLES
 ✅ SMARTWIFI
 ✅ FAN SHARING
 ✅ POTENCIA
+✅ MASIVAS
+✅ ACS
+✅ BROADSOFT
 
 ═══════════════════════
 
@@ -635,11 +709,38 @@ COMANDOS DIRECTOS
 
 
 # ========================================
+# COMANDO /MANUALES
+# ========================================
+
+async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    acceso_ok = await validar_acceso(update, "manuales")
+
+    if not acceso_ok:
+        return
+
+    if not BASE_PDFS:
+        await update.message.reply_text(
+            "⚠️ No hay manuales PDF cargados.\n\n"
+            "Verifica lo siguiente:\n"
+            "1. Que DOCS_PATH sea docs/manuales_pdf\n"
+            "2. Que los PDF estén subidos a GitHub\n"
+            "3. Que PyPDF2 esté en requirements.txt"
+        )
+        return
+
+    texto = "📚 Manuales PDF cargados:\n\n"
+
+    for pdf in BASE_PDFS:
+        texto += f"• {pdf['archivo']}\n"
+
+    await update.message.reply_text(texto)
+
+
+# ========================================
 # COMANDO /ESTADISTICAS
 # ========================================
 
 async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     acceso_ok = await validar_acceso(update, "estadisticas")
 
     if not acceso_ok:
@@ -652,7 +753,9 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mensaje = (
         "📊 ESTADÍSTICAS SOC\n\n"
-        f"Consultas registradas: {total}\n\n"
+        f"Consultas registradas: {total}\n"
+        f"Entradas TXT cargadas: {len(BASE_CONOCIMIENTO)}\n"
+        f"Manuales PDF cargados: {len(BASE_PDFS)}\n\n"
         "Últimas consultas:\n"
     )
 
@@ -671,63 +774,159 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def helix(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     acceso_ok = await validar_acceso(update, "helix")
 
     if not acceso_ok:
         return
 
-    clave = "helix"
-
-    if clave in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
-    else:
-        await update.message.reply_text("HELIX no encontrado en la base de conocimiento.")
+    await responder_por_clave(update, "helix")
 
 
 async def nce(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     acceso_ok = await validar_acceso(update, "nce")
 
     if not acceso_ok:
         return
 
-    clave = "nce"
-
-    if clave in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
-    else:
-        await update.message.reply_text("NCE no encontrado en la base de conocimiento.")
+    await responder_por_clave(update, "nce")
 
 
 async def smartwifi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     acceso_ok = await validar_acceso(update, "smartwifi")
 
     if not acceso_ok:
         return
 
-    clave = "smartwifi"
-
-    if clave in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
-    else:
-        await update.message.reply_text("SMARTWIFI no encontrado en la base de conocimiento.")
+    await responder_por_clave(update, "smartwifi")
 
 
 async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     acceso_ok = await validar_acceso(update, "evento masivo")
 
     if not acceso_ok:
         return
 
-    clave = "evento masivo"
+    await responder_por_clave(update, "evento masivo")
 
-    if clave in BASE_CONOCIMIENTO:
-        await update.message.reply_text(BASE_CONOCIMIENTO[clave])
-    else:
-        await update.message.reply_text("EVENTO MASIVO no encontrado en la base de conocimiento.")
+
+async def responder_por_clave(update: Update, clave):
+    clave_limpia = limpiar_mensaje(clave)
+
+    if clave_limpia in BASE_CONOCIMIENTO:
+        await update.message.reply_text(BASE_CONOCIMIENTO[clave_limpia])
+        return
+
+    resultados_pdf = buscar_en_pdfs(clave)
+
+    if resultados_pdf:
+        respuesta = "📚 Encontré información en manuales PDF:\n\n"
+
+        for resultado in resultados_pdf:
+            respuesta += f"📄 Manual: {resultado['archivo']}\n"
+            respuesta += f"{resultado['fragmento']}\n\n"
+
+        await update.message.reply_text(respuesta[:3900])
+        return
+
+    await update.message.reply_text(
+        f"🤖 No encontré información relacionada con: {clave}"
+    )
+
+
+# ========================================
+# RESPUESTAS LIBRES
+# ========================================
+
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mensaje_original = update.message.text.strip()
+    mensaje = limpiar_mensaje(mensaje_original)
+    user_id = update.effective_user.id
+
+    saludos = [
+        "hola",
+        "buenos dias",
+        "buen dia",
+        "buenas tardes",
+        "buenas noches"
+    ]
+
+    if mensaje in saludos:
+        await update.message.reply_text(
+            "👋 Hola.\n\n"
+            "Soy el Assistant del SOC."
+        )
+
+        acceso_ok = await validar_acceso(update, mensaje_original)
+
+        if not acceso_ok:
+            return
+
+        registrar_consulta(user_id, mensaje_original)
+        return
+
+    acceso_ok = await validar_acceso(update, mensaje_original)
+
+    if not acceso_ok:
+        return
+
+    registrar_consulta(user_id, mensaje_original)
+
+    # Evitar que la contraseña se interprete como consulta
+    if mensaje_original.strip() == ACCESS_CODE:
+        await update.message.reply_text(
+            "✅ Ya tienes una sesión activa en el SOC Assistant."
+        )
+        return
+
+    # Coincidencia exacta TXT
+    if mensaje in BASE_CONOCIMIENTO:
+        await update.message.reply_text(
+            BASE_CONOCIMIENTO[mensaje]
+        )
+        return
+
+    # Coincidencia flexible TXT
+    for clave in sorted(BASE_CONOCIMIENTO.keys(), key=len, reverse=True):
+        clave_limpia = limpiar_mensaje(clave)
+
+        if clave_limpia == mensaje or clave_limpia in mensaje or mensaje in clave_limpia:
+            await update.message.reply_text(
+                BASE_CONOCIMIENTO[clave]
+            )
+            return
+
+    # Búsqueda en PDFs
+    resultados_pdf = buscar_en_pdfs(mensaje_original)
+
+    if resultados_pdf:
+        respuesta = "📚 Encontré información en manuales PDF:\n\n"
+
+        for resultado in resultados_pdf:
+            respuesta += f"📄 Manual: {resultado['archivo']}\n"
+            respuesta += f"{resultado['fragmento']}\n\n"
+
+        await update.message.reply_text(respuesta[:3900])
+        return
+
+    await update.message.reply_text(
+        "🤖 No encontré información en la base de conocimiento ni en los manuales PDF.\n\n"
+        "Prueba con:\n"
+        "SOC\n"
+        "GPON\n"
+        "OLT\n"
+        "ONT\n"
+        "HELIX\n"
+        "NCE\n"
+        "SMARTWIFI\n"
+        "FAN SHARING\n"
+        "POTENCIA\n"
+        "ACS\n"
+        "BROADS0FT\n"
+        "MASIVAS\n"
+        "COMO VALIDAR POTENCIA\n"
+        "HELIX CREAR TICKET\n"
+        "NCE TROUBLESHOOTING"
+    )
 
 
 # ========================================
@@ -735,7 +934,6 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-
     print("Error detectado:", context.error)
 
 
@@ -757,6 +955,7 @@ app.add_handler(CommandHandler("agregarusuario", agregar_usuario))
 app.add_handler(CommandHandler("eliminarusuario", eliminar_usuario))
 app.add_handler(CommandHandler("usuarios", listar_usuarios))
 app.add_handler(CommandHandler("estadisticas", estadisticas))
+app.add_handler(CommandHandler("manuales", manuales))
 
 app.add_handler(CommandHandler("helix", helix))
 app.add_handler(CommandHandler("nce", nce))
