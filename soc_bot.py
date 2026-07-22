@@ -944,7 +944,21 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 if not TOKEN:
     raise ValueError("No se encontró TELEGRAM_BOT_TOKEN en las variables de entorno.")
 
-app = ApplicationBuilder().token(TOKEN).build()
+async def post_init(application):
+    try:
+        await application.bot.delete_webhook(
+            drop_pending_updates=True
+        )
+        print("✅ Webhook eliminado correctamente")
+    except Exception as e:
+        print(f"Error eliminando webhook: {e}")
+
+app = (
+    ApplicationBuilder()
+    .token(TOKEN)
+    .post_init(post_init)
+    .build()
+)
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("menu", menu))
@@ -973,4 +987,8 @@ app.add_error_handler(error_handler)
 
 print("Bot iniciado...")
 
-app.run_polling(drop_pending_updates=True)
+app.run_polling(
+    drop_pending_updates=True,
+    allowed_updates=Update.ALL_TYPES
+)
+
