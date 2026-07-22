@@ -1275,8 +1275,82 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========================================
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     if not update.message or not update.message.text:
         return
+
+    mensaje_original = update.message.text.strip()
+    mensaje = normalizar_boton(mensaje_original)
+    user_id = update.effective_user.id
+
+    acceso_ok = await validar_acceso(update, mensaje_original)
+
+    if not acceso_ok:
+        return
+
+    registrar_consulta(user_id, mensaje_original)
+
+    if mensaje == "manuales":
+        await manuales(update, context)
+        return
+
+    if mensaje == "estadisticas":
+        await estadisticas(update, context)
+        return
+
+    if mensaje == "id":
+        await mi_id(update, context)
+        return
+
+    if mensaje == "logout":
+        await logout(update, context)
+        return
+
+    if mensaje == "manual":
+        texto = listar_manuales_texto()
+        await enviar_texto_largo(update, texto)
+        return
+
+    if mensaje.startswith("manual "):
+
+        consulta_manual = mensaje.replace(
+            "manual ",
+            "",
+            1
+        ).strip()
+
+        pdf = buscar_pdf_relacionado(
+            consulta_manual
+        )
+
+        if not pdf:
+            await update.message.reply_text(
+                f"No encontré manual relacionado con: {consulta_manual}"
+            )
+            return
+
+        await enviar_pdf_seguro(
+            update,
+            pdf
+        )
+
+        return
+
+    tema_detectado = detectar_tema_inteligente(
+        mensaje
+    )
+
+    if tema_detectado:
+        await responder_conocimiento(
+            update,
+            tema_detectado
+        )
+        return
+
+    await responder_conocimiento(
+        update,
+        mensaje
+    )
 
     mensaje_original = update.message.text.strip()
     mensaje = normalizar_boton(mensaje_original)
