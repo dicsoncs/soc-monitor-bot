@@ -225,7 +225,7 @@ def guardar_sesiones():
 
 
 usuarios_logueados = cargar_sesiones()
-
+ULTIMO_MENSAJE = {}
 
 # ========================================
 # CONSULTAS / ESTADÍSTICAS
