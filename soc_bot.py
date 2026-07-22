@@ -211,7 +211,6 @@ def guardar_consultas(data):
 
 
 def registrar_consulta(user_id, consulta):
-    return
     try:
         data = cargar_consultas()
 
@@ -562,11 +561,15 @@ async def enviar_pdf_seguro(update: Update, pdf):
     try:
         with open(ruta, "rb") as f:
             await update.message.reply_document(
-                document=f,
-                filename=archivo,
-                caption=f"📄 {archivo}",
-                protect_content=True
-            )
+    document=f,
+    filename=archivo,
+    caption=f"📄 {archivo}",
+    protect_content=True,
+    read_timeout=90,
+    write_timeout=90,
+    connect_timeout=90,
+    pool_timeout=90
+)
 
     except Exception as e:
         print(f"Error enviando PDF {archivo}: {e}")
@@ -987,9 +990,10 @@ async def responder_conocimiento(update: Update, consulta):
 
     # Respuesta inmediata
     if respuesta_txt:
-        await update.message.reply_text(
-            respuesta_txt
-        )
+    await enviar_texto_largo(
+        update,
+        respuesta_txt
+    )
         return
 
     await update.message.reply_text(
@@ -1181,6 +1185,8 @@ app.add_error_handler(error_handler)
 print("Bot iniciado...")
 
 app.run_polling(
+    poll_interval=2,
+    timeout=30,
     drop_pending_updates=True,
     allowed_updates=Update.ALL_TYPES
 )
