@@ -62,15 +62,6 @@ def limpiar_mensaje(texto):
     return texto
 
 
-def cortar_texto(texto, limite=1000):
-    texto = texto.strip()
-
-    if len(texto) <= limite:
-        return texto
-
-    return texto[:limite].strip() + "..."
-
-
 def convertir_ids_env(valor):
     ids = set()
 
@@ -311,7 +302,7 @@ def es_admin(user_id):
 
 
 # ========================================
-# BASE TXT
+# BASE DE CONOCIMIENTO TXT
 # ========================================
 
 BASE_CONOCIMIENTO = {}
@@ -374,7 +365,7 @@ def buscar_en_txt(consulta):
 
 
 # ========================================
-# BASE PDF SOLO VISUALIZACIÓN
+# BASE DE CONOCIMIENTO PDF
 # ========================================
 
 BASE_PDFS = []
@@ -458,94 +449,88 @@ def cargar_pdfs():
         print("Error cargando PDFs:", e)
 
 
-def puntuar_pdf(pdf, consulta_limpia, palabras):
-    puntaje = 0
+def obtener_manual_objetivo(consulta):
+    consulta_limpia = limpiar_mensaje(consulta)
 
-    archivo_limpio = pdf.get("archivo_limpio", "")
-    texto_limpio = pdf.get("texto_limpio", "")
-
-    # Coincidencia fuerte por nombre de archivo
-    if consulta_limpia in archivo_limpio:
-        puntaje += 30
-
-    # Reglas para priorizar manual correcto
-    reglas_archivo = {
-        "gpon": ["gpon", "ncegpon", "nce gpon"],
-        "nce": ["nce", "ncegpon"],
-        "helix": ["helix"],
-        "smartwifi": ["smartwifi", "smart wifi"],
-        "smart wifi": ["smartwifi", "smart wifi"],
-        "fan sharing": ["fan sharing", "fan"],
-        "fan": ["fan sharing", "fan"],
-        "potencia": ["gpon", "ncegpon"],
-        "acs": ["acs", "genie"],
-        "aaa": ["aaa"],
-        "broadsoft": ["broadsoft"],
-        "masivas": ["gpon", "ncegpon"],
-        "masiva": ["gpon", "ncegpon"],
-        "evento masivo": ["gpon", "ncegpon"]
+    reglas = {
+        "gpon": "ncegpon",
+        "nce": "ncegpon",
+        "potencia": "ncegpon",
+        "masiva": "ncegpon",
+        "masivas": "ncegpon",
+        "evento masivo": "ncegpon",
+        "helix": "helix",
+        "smartwifi": "smartwifi",
+        "smart wifi": "smartwifi",
+        "fan sharing": "fan",
+        "fan": "fan",
+        "acs": "acs",
+        "genie": "acs",
+        "aaa": "aaa",
+        "broadsoft": "broadsoft"
     }
 
-    for clave, nombres_validos in reglas_archivo.items():
+    for clave, manual in reglas.items():
         if clave in consulta_limpia:
-            for nombre in nombres_validos:
-                nombre_limpio = limpiar_mensaje(nombre)
+            return manual
 
-                if nombre_limpio in archivo_limpio:
-                    puntaje += 40
-
-    # Coincidencia por contenido del PDF
-    if consulta_limpia in texto_limpio:
-        puntaje += 10
-
-    for palabra in palabras:
-        if len(palabra) >= 3:
-            if palabra in archivo_limpio:
-                puntaje += 8
-
-            if palabra in texto_limpio:
-                puntaje += 1
-
-    # Penalizaciones para no traer manuales incorrectos
-    if "gpon" in consulta_limpia and "aaa" in archivo_limpio:
-        puntaje -= 80
-
-    if "gpon" in consulta_limpia and "broadsoft" in archivo_limpio:
-        puntaje -= 80
-
-    if "gpon" in consulta_limpia and "acs" in archivo_limpio:
-        puntaje -= 50
-
-    if "nce" in consulta_limpia and "aaa" in archivo_limpio:
-        puntaje -= 60
-
-    if "helix" in consulta_limpia and "gpon" in archivo_limpio:
-        puntaje -= 30
-
-    if "aaa" in consulta_limpia and "gpon" in archivo_limpio:
-        puntaje -= 60
-
-    return puntaje
+    return None
 
 
-def buscar_en_pdfs(consulta, limite=None):
-    resultados = []
+def buscar_pdf_relacionado(consulta):
     consulta_limpia = limpiar_mensaje(consulta)
 
     if not consulta_limpia:
-        return resultados
+        return None
 
-    if limite is None:
-        limite = MAX_RESULTS
+    manual_objetivo = obtener_manual_objetivo(consulta_limpia)
+
+    if manual_objetivo:
+        for pdf in BASE_PDFS:
+            archivo_limpio = pdf.get("archivo_limpio", "")
+
+            if manual_objetivo in archivo_limpio:
+                return pdf
 
     palabras = consulta_limpia.split()
     candidatos = []
 
     for pdf in BASE_PDFS:
-        puntaje = puntuar_pdf(pdf, consulta_limpia, palabras)
+        archivo_limpio = pdf.get("archivo_limpio", "")
+        texto_limpio = pdf.get("texto_limpio", "")
+        puntaje = 0
+
+        if consulta_limpia in archivo_limpio:
+            puntaje += 30
+
+        if consulta_limpia in texto_limpio:
+            puntaje += 10
+
+        for palabra in palabras:
+            if len(palabra) >= 3:
+                if palabra in archivo_limpio:
+                    puntaje += 8
+
+                if palabra in texto_limpio:
+                    puntaje += 1
+
+        if "gpon" in consulta_limpia and "aaa" in archivo_limpio:
+            puntaje -= 100
+
+        if "gpon" in consulta_limpia and "acs" in archivo_limpio:
+            puntaje -= 100
+
+        if "gpon" in consulta_limpia and "broadsoft" in archivo_limpio:
+            puntaje -= 100
+
+        if "nce" in consulta_limpia and "aaa" in archivo_limpio:
+            puntaje -= 100
 
         if puntaje > 0:
             candidatos.append((puntaje, pdf))
+
+    if not candidatos:
+        return None
 
     candidatos = sorted(
         candidatos,
@@ -553,44 +538,31 @@ def buscar_en_pdfs(consulta, limite=None):
         reverse=True
     )
 
-    for puntaje, pdf in candidatos[:limite]:
-        texto_original = pdf.get("texto", "")
-        texto_limpio = pdf.get("texto_limpio", "")
+    return candidatos[0][1]
 
-        if texto_original.strip():
-            posicion = texto_limpio.find(consulta_limpia)
 
-            if posicion >= 0:
-                inicio = max(0, posicion - 500)
-                fin = min(len(texto_original), posicion + 1200)
-                fragmento = texto_original[inicio:fin]
-            else:
-                fragmento = texto_original[:1300]
-        else:
-            fragmento = (
-                "El manual fue encontrado, pero parece ser escaneado "
-                "o no tiene texto extraíble para visualizar."
+async def enviar_pdf_seguro(update: Update, pdf):
+    if not pdf:
+        return
+
+    ruta = pdf.get("ruta")
+    archivo = pdf.get("archivo")
+
+    if not ruta or not os.path.exists(ruta):
+        print(f"No se encontró la ruta del PDF: {ruta}")
+        return
+
+    try:
+        with open(ruta, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename=archivo,
+                caption=f"📄 {archivo}",
+                protect_content=True
             )
 
-        resultados.append(
-            {
-                "archivo": pdf["archivo"],
-                "fragmento": cortar_texto(fragmento, 1000),
-                "puntaje": puntaje
-            }
-        )
-
-    return resultados
-
-
-async def enviar_documentos_pdf(update: Update, resultados_pdf, limite=2):
-    """
-    MODO SEGURO:
-    No se envían PDFs como archivos descargables.
-    Solo se visualiza texto extraído del manual.
-    """
-    print("Modo visualización activo: no se envían PDFs descargables.")
-    return
+    except Exception as e:
+        print(f"Error enviando PDF {archivo}: {e}")
 
 
 # ========================================
@@ -899,9 +871,8 @@ evento masivo gpon
 
 ═══════════════════════
 
-🔒 Modo seguro:
-Los manuales se visualizan en texto.
-No se envían PDFs descargables.
+🔒 Documentos protegidos:
+Los manuales se adjuntan con protección de contenido.
 """
 
     await update.message.reply_text(
@@ -922,14 +893,12 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    texto = "📚 Manuales PDF cargados para visualización:\n\n"
+    texto = "📚 Manuales PDF cargados:\n\n"
 
     for pdf in BASE_PDFS:
         texto += f"• {pdf['archivo']}\n"
 
-    texto += "\n🔒 Nota: los manuales no se envían como archivo descargable.\n"
-    texto += "Solo se muestra una vista en texto del contenido.\n\n"
-    texto += "Ejemplos:\n"
+    texto += "\nEjemplos:\n"
     texto += "/manual gpon\n"
     texto += "/manual helix\n"
     texto += "/manual nce\n"
@@ -960,23 +929,15 @@ async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     registrar_consulta(update.effective_user.id, f"manual {consulta}")
 
-    resultados_pdf = buscar_en_pdfs(consulta, limite=3)
+    pdf = buscar_pdf_relacionado(consulta)
 
-    if not resultados_pdf:
+    if not pdf:
         await update.message.reply_text(
-            f"🤖 No encontré manual relacionado con: {consulta}"
+            f"No encontré manual relacionado con: {consulta}"
         )
         return
 
-    respuesta = f"👁️ Vista de manuales relacionados con: {consulta}\n\n"
-
-    for resultado in resultados_pdf:
-        respuesta += f"📄 Manual visualizado: {resultado['archivo']}\n"
-        respuesta += f"{resultado['fragmento']}\n\n"
-
-    respuesta += "🔒 Modo seguro: no se adjunta el PDF descargable."
-
-    await enviar_texto_largo(update, respuesta)
+    await enviar_pdf_seguro(update, pdf)
 
 
 async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1017,58 +978,22 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ========================================
-# RESPONDER CONOCIMIENTO TXT + PDF VISUAL
+# RESPONDER CONOCIMIENTO
 # ========================================
 
 async def responder_conocimiento(update: Update, consulta):
     respuesta_txt = buscar_en_txt(consulta)
-    resultados_pdf = buscar_en_pdfs(consulta, limite=MAX_RESULTS)
-
-    hubo_respuesta = False
+    pdf = buscar_pdf_relacionado(consulta)
 
     if respuesta_txt:
-        await enviar_texto_largo(
-            update,
-            f"📌 Información encontrada en base SOC:\n\n{respuesta_txt}"
-        )
-        hubo_respuesta = True
+        await enviar_texto_largo(update, respuesta_txt)
 
-    if resultados_pdf:
-        respuesta_pdf = "👁️ Vista del manual relacionado:\n\n"
+    if pdf:
+        await enviar_pdf_seguro(update, pdf)
 
-        for resultado in resultados_pdf:
-            respuesta_pdf += f"📄 Manual visualizado: {resultado['archivo']}\n"
-            respuesta_pdf += f"{resultado['fragmento']}\n\n"
-
-        respuesta_pdf += "🔒 Modo seguro: el PDF no se adjunta para descarga."
-
-        await enviar_texto_largo(update, respuesta_pdf)
-
-        # No se envía documento PDF.
-        await enviar_documentos_pdf(update, resultados_pdf, limite=0)
-
-        hubo_respuesta = True
-
-    if not hubo_respuesta:
+    if not respuesta_txt and not pdf:
         await update.message.reply_text(
-            "🤖 No encontré información en la base de conocimiento ni en los manuales PDF.\n\n"
-            "Prueba con:\n"
-            "SOC\n"
-            "GPON\n"
-            "OLT\n"
-            "ONT\n"
-            "HELIX\n"
-            "NCE\n"
-            "SMARTWIFI\n"
-            "FAN SHARING\n"
-            "POTENCIA\n"
-            "ACS\n"
-            "BROADSOFT\n"
-            "MASIVAS\n\n"
-            "También puedes usar:\n"
-            "/manual gpon\n"
-            "/manual helix\n"
-            "/manual potencia"
+            "No encontré información relacionada."
         )
 
 
@@ -1180,24 +1105,15 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if mensaje.startswith("manual "):
         consulta_manual = mensaje.replace("manual ", "", 1).strip()
+        pdf = buscar_pdf_relacionado(consulta_manual)
 
-        resultados_pdf = buscar_en_pdfs(consulta_manual, limite=3)
-
-        if not resultados_pdf:
+        if not pdf:
             await update.message.reply_text(
-                f"🤖 No encontré manual relacionado con: {consulta_manual}"
+                f"No encontré manual relacionado con: {consulta_manual}"
             )
             return
 
-        respuesta = f"👁️ Vista de manuales relacionados con: {consulta_manual}\n\n"
-
-        for resultado in resultados_pdf:
-            respuesta += f"📄 Manual visualizado: {resultado['archivo']}\n"
-            respuesta += f"{resultado['fragmento']}\n\n"
-
-        respuesta += "🔒 Modo seguro: no se adjunta el PDF descargable."
-
-        await enviar_texto_largo(update, respuesta)
+        await enviar_pdf_seguro(update, pdf)
         return
 
     await responder_conocimiento(update, mensaje)
