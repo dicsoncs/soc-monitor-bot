@@ -693,7 +693,10 @@ def buscar_fragmentos_pdf(consulta):
         reverse=True
     )
 
-    respuesta = "🔎 Encontré información relacionada en los manuales:\n\n"
+    respuesta = (
+    "📚 SOC Assistant\n\n"
+    "He encontrado información en los manuales operativos:\n\n"
+)
 
     for item in resultados[:MAX_RESULTS]:
         respuesta += f"📄 Manual: {item['archivo']}\n"
