@@ -62,7 +62,7 @@ def limpiar_mensaje(texto):
     return texto
 
 
-def cortar_texto(texto, limite=900):
+def cortar_texto(texto, limite=1000):
     texto = texto.strip()
 
     if len(texto) <= limite:
@@ -148,7 +148,7 @@ def normalizar_boton(texto):
 
 
 # ========================================
-# FUNCIONES DE SESIÓN
+# SESIONES
 # ========================================
 
 def cargar_sesiones():
@@ -256,7 +256,7 @@ def obtener_top_consultas():
 
 
 # ========================================
-# FUNCIONES DE USUARIOS
+# USUARIOS
 # ========================================
 
 USUARIOS_BASE = convertir_ids_env(AUTHORIZED_USER_IDS_ENV)
@@ -311,7 +311,7 @@ def es_admin(user_id):
 
 
 # ========================================
-# BASE DE CONOCIMIENTO TXT
+# BASE TXT
 # ========================================
 
 BASE_CONOCIMIENTO = {}
@@ -374,7 +374,7 @@ def buscar_en_txt(consulta):
 
 
 # ========================================
-# BASE DE CONOCIMIENTO PDF
+# BASE PDF SOLO VISUALIZACIÓN
 # ========================================
 
 BASE_PDFS = []
@@ -449,8 +449,10 @@ def cargar_pdfs():
                     else:
                         print(f"PDF sin texto extraíble o escaneado: {archivo}")
 
+        pdfs_con_texto = len([p for p in BASE_PDFS if p["texto"].strip()])
+
         print(f"PDFs encontrados: {total_pdfs}")
-        print(f"PDFs con texto cargado: {len([p for p in BASE_PDFS if p['texto'].strip()])}")
+        print(f"PDFs con texto cargado: {pdfs_con_texto}")
 
     except Exception as e:
         print("Error cargando PDFs:", e)
@@ -462,43 +464,66 @@ def puntuar_pdf(pdf, consulta_limpia, palabras):
     archivo_limpio = pdf.get("archivo_limpio", "")
     texto_limpio = pdf.get("texto_limpio", "")
 
+    # Coincidencia fuerte por nombre de archivo
     if consulta_limpia in archivo_limpio:
-        puntaje += 10
+        puntaje += 30
 
+    # Reglas para priorizar manual correcto
+    reglas_archivo = {
+        "gpon": ["gpon", "ncegpon", "nce gpon"],
+        "nce": ["nce", "ncegpon"],
+        "helix": ["helix"],
+        "smartwifi": ["smartwifi", "smart wifi"],
+        "smart wifi": ["smartwifi", "smart wifi"],
+        "fan sharing": ["fan sharing", "fan"],
+        "fan": ["fan sharing", "fan"],
+        "potencia": ["gpon", "ncegpon"],
+        "acs": ["acs", "genie"],
+        "aaa": ["aaa"],
+        "broadsoft": ["broadsoft"],
+        "masivas": ["gpon", "ncegpon"],
+        "masiva": ["gpon", "ncegpon"],
+        "evento masivo": ["gpon", "ncegpon"]
+    }
+
+    for clave, nombres_validos in reglas_archivo.items():
+        if clave in consulta_limpia:
+            for nombre in nombres_validos:
+                nombre_limpio = limpiar_mensaje(nombre)
+
+                if nombre_limpio in archivo_limpio:
+                    puntaje += 40
+
+    # Coincidencia por contenido del PDF
     if consulta_limpia in texto_limpio:
-        puntaje += 6
+        puntaje += 10
 
     for palabra in palabras:
         if len(palabra) >= 3:
             if palabra in archivo_limpio:
-                puntaje += 4
+                puntaje += 8
 
             if palabra in texto_limpio:
                 puntaje += 1
 
-    sinonimos = {
-        "gpon": ["gpon", "ncegpon", "olt", "ont", "fibra"],
-        "helix": ["helix", "ticket", "incidente"],
-        "nce": ["nce", "troubleshooting", "diagnostico"],
-        "smartwifi": ["smartwifi", "smart wifi", "wifi"],
-        "fan sharing": ["fan sharing", "fan"],
-        "potencia": ["potencia", "rx", "tx", "dbm", "ont", "olt"],
-        "masivas": ["masiva", "masivas", "evento masivo", "clientes caidos"],
-        "evento masivo": ["masiva", "masivas", "evento masivo", "clientes caidos"],
-        "acs": ["acs", "genie"],
-        "broadsoft": ["broadsoft"]
-    }
+    # Penalizaciones para no traer manuales incorrectos
+    if "gpon" in consulta_limpia and "aaa" in archivo_limpio:
+        puntaje -= 80
 
-    for clave, valores in sinonimos.items():
-        if clave in consulta_limpia:
-            for valor in valores:
-                valor_limpio = limpiar_mensaje(valor)
+    if "gpon" in consulta_limpia and "broadsoft" in archivo_limpio:
+        puntaje -= 80
 
-                if valor_limpio in archivo_limpio:
-                    puntaje += 5
+    if "gpon" in consulta_limpia and "acs" in archivo_limpio:
+        puntaje -= 50
 
-                if valor_limpio in texto_limpio:
-                    puntaje += 2
+    if "nce" in consulta_limpia and "aaa" in archivo_limpio:
+        puntaje -= 60
+
+    if "helix" in consulta_limpia and "gpon" in archivo_limpio:
+        puntaje -= 30
+
+    if "aaa" in consulta_limpia and "gpon" in archivo_limpio:
+        puntaje -= 60
 
     return puntaje
 
@@ -514,7 +539,6 @@ def buscar_en_pdfs(consulta, limite=None):
         limite = MAX_RESULTS
 
     palabras = consulta_limpia.split()
-
     candidatos = []
 
     for pdf in BASE_PDFS:
@@ -533,8 +557,6 @@ def buscar_en_pdfs(consulta, limite=None):
         texto_original = pdf.get("texto", "")
         texto_limpio = pdf.get("texto_limpio", "")
 
-        fragmento = ""
-
         if texto_original.strip():
             posicion = texto_limpio.find(consulta_limpia)
 
@@ -545,12 +567,14 @@ def buscar_en_pdfs(consulta, limite=None):
             else:
                 fragmento = texto_original[:1300]
         else:
-            fragmento = "El manual fue encontrado, pero parece ser escaneado o no tiene texto extraíble."
+            fragmento = (
+                "El manual fue encontrado, pero parece ser escaneado "
+                "o no tiene texto extraíble para visualizar."
+            )
 
         resultados.append(
             {
                 "archivo": pdf["archivo"],
-                "ruta": pdf["ruta"],
                 "fragmento": cortar_texto(fragmento, 1000),
                 "puntaje": puntaje
             }
@@ -560,39 +584,17 @@ def buscar_en_pdfs(consulta, limite=None):
 
 
 async def enviar_documentos_pdf(update: Update, resultados_pdf, limite=2):
-    enviados = 0
-    archivos_enviados = set()
-
-    for resultado in resultados_pdf:
-        if enviados >= limite:
-            break
-
-        ruta = resultado.get("ruta")
-        archivo = resultado.get("archivo")
-
-        if not ruta or not os.path.exists(ruta):
-            continue
-
-        if archivo in archivos_enviados:
-            continue
-
-        try:
-            with open(ruta, "rb") as f:
-                await update.message.reply_document(
-                    document=f,
-                    filename=archivo,
-                    caption=f"📄 Manual relacionado: {archivo}"
-                )
-
-            archivos_enviados.add(archivo)
-            enviados += 1
-
-        except Exception as e:
-            print(f"Error enviando PDF {archivo}: {e}")
+    """
+    MODO SEGURO:
+    No se envían PDFs como archivos descargables.
+    Solo se visualiza texto extraído del manual.
+    """
+    print("Modo visualización activo: no se envían PDFs descargables.")
+    return
 
 
 # ========================================
-# CARGA INICIAL DE CONOCIMIENTO
+# CARGA INICIAL
 # ========================================
 
 cargar_base_txt()
@@ -653,7 +655,7 @@ async def validar_acceso(update: Update, mensaje_original: str):
 
 
 # ========================================
-# COMANDO /ID
+# COMANDOS BÁSICOS
 # ========================================
 
 async def mi_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -663,10 +665,6 @@ async def mi_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Tu ID de Telegram es:\n\n{user_id}"
     )
 
-
-# ========================================
-# COMANDO /START
-# ========================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -708,8 +706,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if user_id in usuarios_logueados:
+        usuarios_logueados.remove(user_id)
+        guardar_sesiones()
+
+        await update.message.reply_text(
+            "🔒 Sesión cerrada correctamente."
+        )
+
+    else:
+        await update.message.reply_text(
+            "No tienes una sesión activa."
+        )
+
+
 # ========================================
-# COMANDO /AGREGARUSUARIO
+# ADMIN USUARIOS
 # ========================================
 
 async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -734,9 +749,7 @@ async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not nuevo_id.isdigit():
         await update.message.reply_text(
-            "⚠️ El ID debe ser numérico.\n\n"
-            "Ejemplo:\n"
-            "/agregarusuario 123456789"
+            "⚠️ El ID debe ser numérico."
         )
         return
 
@@ -754,10 +767,6 @@ async def agregar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ========================================
-# COMANDO /ELIMINARUSUARIO
-# ========================================
-
 async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_id = update.effective_user.id
 
@@ -770,9 +779,7 @@ async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text(
             "Uso correcto:\n\n"
-            "/eliminarusuario ID_TELEGRAM\n\n"
-            "Ejemplo:\n"
-            "/eliminarusuario 123456789"
+            "/eliminarusuario ID_TELEGRAM"
         )
         return
 
@@ -799,10 +806,6 @@ async def eliminar_usuario(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"ID eliminado:\n{eliminar_id}"
     )
 
-
-# ========================================
-# COMANDO /USUARIOS
-# ========================================
 
 async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_id = update.effective_user.id
@@ -831,28 +834,7 @@ async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ========================================
-# COMANDO /LOGOUT
-# ========================================
-
-async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if user_id in usuarios_logueados:
-        usuarios_logueados.remove(user_id)
-        guardar_sesiones()
-
-        await update.message.reply_text(
-            "🔒 Sesión cerrada correctamente."
-        )
-
-    else:
-        await update.message.reply_text(
-            "No tienes una sesión activa."
-        )
-
-
-# ========================================
-# COMANDO /MENU
+# MENU / MANUALES / ESTADISTICAS
 # ========================================
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -905,13 +887,21 @@ COMANDOS DIRECTOS
 
 EJEMPLOS
 
+GPON
 manual gpon
-manual helix
-manual potencia
+/manual helix
+/manual nce
+/manual potencia
 como crear ticket helix
 nce troubleshooting
 validar potencia ont
 evento masivo gpon
+
+═══════════════════════
+
+🔒 Modo seguro:
+Los manuales se visualizan en texto.
+No se envían PDFs descargables.
 """
 
     await update.message.reply_text(
@@ -919,10 +909,6 @@ evento masivo gpon
         reply_markup=teclado_principal()
     )
 
-
-# ========================================
-# COMANDO /MANUALES
-# ========================================
 
 async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
     acceso_ok = await validar_acceso(update, "manuales")
@@ -932,20 +918,18 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not BASE_PDFS:
         await update.message.reply_text(
-            "⚠️ No hay manuales PDF cargados.\n\n"
-            "Verifica lo siguiente:\n"
-            "1. Que DOCS_PATH sea docs/manuales_pdf\n"
-            "2. Que los PDF estén subidos a GitHub\n"
-            "3. Que PyPDF2 esté en requirements.txt"
+            "⚠️ No hay manuales PDF cargados."
         )
         return
 
-    texto = "📚 Manuales PDF cargados:\n\n"
+    texto = "📚 Manuales PDF cargados para visualización:\n\n"
 
     for pdf in BASE_PDFS:
         texto += f"• {pdf['archivo']}\n"
 
-    texto += "\nPara buscar un manual usa:\n"
+    texto += "\n🔒 Nota: los manuales no se envían como archivo descargable.\n"
+    texto += "Solo se muestra una vista en texto del contenido.\n\n"
+    texto += "Ejemplos:\n"
     texto += "/manual gpon\n"
     texto += "/manual helix\n"
     texto += "/manual nce\n"
@@ -953,10 +937,6 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(texto)
 
-
-# ========================================
-# COMANDO /MANUAL
-# ========================================
 
 async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     acceso_ok = await validar_acceso(update, "manual")
@@ -988,24 +968,16 @@ async def manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    respuesta = f"📚 Manuales relacionados con: {consulta}\n\n"
+    respuesta = f"👁️ Vista de manuales relacionados con: {consulta}\n\n"
 
     for resultado in resultados_pdf:
-        respuesta += f"📄 Manual: {resultado['archivo']}\n"
+        respuesta += f"📄 Manual visualizado: {resultado['archivo']}\n"
         respuesta += f"{resultado['fragmento']}\n\n"
+
+    respuesta += "🔒 Modo seguro: no se adjunta el PDF descargable."
 
     await enviar_texto_largo(update, respuesta)
 
-    await enviar_documentos_pdf(
-        update,
-        resultados_pdf,
-        limite=2
-    )
-
-
-# ========================================
-# COMANDO /ESTADISTICAS
-# ========================================
 
 async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     acceso_ok = await validar_acceso(update, "estadisticas")
@@ -1045,7 +1017,7 @@ async def estadisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ========================================
-# RESPONDER CON TXT + PDF
+# RESPONDER CONOCIMIENTO TXT + PDF VISUAL
 # ========================================
 
 async def responder_conocimiento(update: Update, consulta):
@@ -1062,14 +1034,18 @@ async def responder_conocimiento(update: Update, consulta):
         hubo_respuesta = True
 
     if resultados_pdf:
-        respuesta_pdf = "📚 Información relacionada en manuales PDF:\n\n"
+        respuesta_pdf = "👁️ Vista del manual relacionado:\n\n"
 
         for resultado in resultados_pdf:
-            respuesta_pdf += f"📄 Manual: {resultado['archivo']}\n"
+            respuesta_pdf += f"📄 Manual visualizado: {resultado['archivo']}\n"
             respuesta_pdf += f"{resultado['fragmento']}\n\n"
 
+        respuesta_pdf += "🔒 Modo seguro: el PDF no se adjunta para descarga."
+
         await enviar_texto_largo(update, respuesta_pdf)
-        await enviar_documentos_pdf(update, resultados_pdf, limite=2)
+
+        # No se envía documento PDF.
+        await enviar_documentos_pdf(update, resultados_pdf, limite=0)
 
         hubo_respuesta = True
 
@@ -1088,10 +1064,7 @@ async def responder_conocimiento(update: Update, consulta):
             "POTENCIA\n"
             "ACS\n"
             "BROADSOFT\n"
-            "MASIVAS\n"
-            "COMO VALIDAR POTENCIA\n"
-            "HELIX CREAR TICKET\n"
-            "NCE TROUBLESHOOTING\n\n"
+            "MASIVAS\n\n"
             "También puedes usar:\n"
             "/manual gpon\n"
             "/manual helix\n"
@@ -1216,14 +1189,15 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        respuesta = f"📚 Manuales relacionados con: {consulta_manual}\n\n"
+        respuesta = f"👁️ Vista de manuales relacionados con: {consulta_manual}\n\n"
 
         for resultado in resultados_pdf:
-            respuesta += f"📄 Manual: {resultado['archivo']}\n"
+            respuesta += f"📄 Manual visualizado: {resultado['archivo']}\n"
             respuesta += f"{resultado['fragmento']}\n\n"
 
+        respuesta += "🔒 Modo seguro: no se adjunta el PDF descargable."
+
         await enviar_texto_largo(update, respuesta)
-        await enviar_documentos_pdf(update, resultados_pdf, limite=2)
         return
 
     await responder_conocimiento(update, mensaje)
