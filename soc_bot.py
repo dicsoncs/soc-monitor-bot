@@ -29,10 +29,10 @@ ACCESS_CODE = os.getenv("ACCESS_CODE", "SOCENTEL2026")
 AUTHORIZED_USER_IDS_ENV = os.getenv("AUTHORIZED_USER_IDS", "")
 ADMIN_USER_IDS_ENV = os.getenv("ADMIN_USER_IDS", "")
 
-ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower() == "true"
+ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower().strip() == "true"
 
 DOCS_PATH = os.getenv("DOCS_PATH", "docs/manuales_pdf")
-MAX_RESULTS = int(os.getenv("MAX_RESULTS", "4"))
+MAX_RESULTS = int(os.getenv("MAX_RESULTS", "1"))
 
 USERS_FILE = "usuarios_autorizados.json"
 SESSION_FILE = "sesiones.json"
@@ -86,7 +86,6 @@ def convertir_ids_env(valor):
     if valor:
         for item in valor.split(","):
             item = item.strip()
-
             if item.isdigit():
                 ids.add(int(item))
 
@@ -552,7 +551,6 @@ def obtener_manual_objetivo(consulta):
         if clave in consulta_limpia:
             return manual
 
-    # Detección automática según nombre del PDF.
     for pdf in BASE_PDFS:
         archivo_limpio = pdf.get("archivo_limpio", "")
         archivo_sin_pdf = archivo_limpio.replace(".pdf", "").replace("manual", "").strip()
@@ -694,9 +692,9 @@ def buscar_fragmentos_pdf(consulta):
     )
 
     respuesta = (
-    "📚 SOC Assistant\n\n"
-    "He encontrado información en los manuales operativos:\n\n"
-)
+        "📚 SOC Assistant\n\n"
+        "He encontrado información en los manuales operativos:\n\n"
+    )
 
     for item in resultados[:MAX_RESULTS]:
         respuesta += f"📄 Manual: {item['archivo']}\n"
@@ -1066,7 +1064,6 @@ async def manuales(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     texto = listar_manuales_texto()
-
     await enviar_texto_largo(update, texto)
 
 
@@ -1157,7 +1154,7 @@ def detectar_tema_inteligente(mensaje):
     if not mensaje:
         return None
 
-    if "potencia" in mensaje or "rx" in mensaje or "tx" in mensaje:
+    if "potencia" in mensaje or "rx" in mensaje or "tx" in mensaje or "dbm" in mensaje:
         return "potencia"
 
     if "evento masivo" in mensaje or "masiva" in mensaje or "masivas" in mensaje:
@@ -1175,7 +1172,7 @@ def detectar_tema_inteligente(mensaje):
     if "nce" in mensaje:
         return "nce"
 
-    if "gpon" in mensaje or "olt" in mensaje or "ont" in mensaje:
+    if "gpon" in mensaje or "olt" in mensaje or "ont" in mensaje or "onu" in mensaje:
         return "gpon"
 
     if "fan" in mensaje or "fan sharing" in mensaje:
@@ -1277,58 +1274,7 @@ async def masivas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # RESPUESTAS LIBRES
 # ========================================
 
-async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE): if mensaje == "manual":
-        texto = (
-            "Uso correcto:\n\n"
-            "/manual palabra_clave\n\n"
-            "Ejemplos:\n"
-            "/manual gpon\n"
-            "/manual helix\n"
-            "/manual nce\n"
-            "/manual potencia\n"
-        )
-
-        await update.message.reply_text(texto)
-        return
-
-    if mensaje.startswith("manual "):
-        consulta_manual = mensaje.replace(
-            "manual ",
-            "",
-            1
-        ).strip()
-
-        pdf = buscar_pdf_relacionado(
-            consulta_manual
-        )
-
-        if not pdf:
-            await update.message.reply_text(
-                f"No encontré manual relacionado con: {consulta_manual}"
-            )
-            return
-
-        await enviar_pdf_seguro(
-            update,
-            pdf
-        )
-        return
-
-    tema_detectado = detectar_tema_inteligente(
-        mensaje
-    )
-
-    if tema_detectado:
-        await responder_conocimiento(
-            update,
-            tema_detectado
-        )
-        return
-
-    await responder_conocimiento(
-        update,
-        mensaje
-    )
+async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
 
@@ -1397,15 +1343,19 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE): if mens
             "/manual gpon\n"
             "/manual helix\n"
             "/manual nce\n"
-            "/manual potencia\n\n"
+            "/manual potencia\n"
+            "/manual smartwifi\n"
+            "/manual schaman\n\n"
         )
 
         texto += listar_manuales_texto()
+
         await enviar_texto_largo(update, texto)
         return
 
     if mensaje.startswith("manual "):
         consulta_manual = mensaje.replace("manual ", "", 1).strip()
+
         pdf = buscar_pdf_relacionado(consulta_manual)
 
         if not pdf:
@@ -1418,13 +1368,14 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE): if mens
         await enviar_pdf_seguro(update, pdf)
         return
 
-   tema_detectado = detectar_tema_inteligente(mensaje)
+    tema_detectado = detectar_tema_inteligente(mensaje)
 
-if tema_detectado:
-    await responder_conocimiento(update, tema_detectado)
-    return
+    if tema_detectado:
+        await responder_conocimiento(update, tema_detectado)
+        return
 
-await responder_conocimiento(update, mensaje)
+    await responder_conocimiento(update, mensaje)
+
 
 # ========================================
 # MANEJO DE ERRORES
